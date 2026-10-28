@@ -150,7 +150,10 @@ class NCMTaskGenerator:
             z_hat = torch.zeros(B, net_ref.levels[-1], self.vqvae.embed_dim, device=dev)
 
             _enc = self.vqvae.encoder
-            z_prefix = _enc.wte(prefix_tokens)[:, :p_len, :]
+            if bool(getattr(net_ref.config, "contextual_prefix", False)) and len(getattr(_enc, "blocks", [])) > 0:
+                z_prefix = _enc.forward_nopos(prefix_tokens)[:, :p_len, :]
+            else:
+                z_prefix = _enc.wte(prefix_tokens)[:, :p_len, :]
             prefix_emb = net_ref.transformer.wte(z_prefix)
             level_pos_embed = net_ref.transformer.wle(net_ref.lvl_1L)
 

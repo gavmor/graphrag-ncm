@@ -95,7 +95,11 @@ def main() -> None:
         with torch.no_grad():
             idx = vqvae.encode(target_batch)  # (B, L) codebook indices across all levels
             rest_embed = vqvae.vq.idx_to_ncm_input(idx)  # (B, L - levels[0], embed_dim)
-            z_prefix = vqvae.encoder.wte(prefix_batch)[:, : model_cfg.prefix_len, :]
+            _enc = vqvae.encoder
+            if bool(getattr(model_cfg, "contextual_prefix", False)) and len(getattr(_enc, "blocks", [])) > 0:
+                z_prefix = _enc.forward_nopos(prefix_batch)[:, : model_cfg.prefix_len, :]
+            else:
+                z_prefix = _enc.wte(prefix_batch)[:, : model_cfg.prefix_len, :]
             if hasattr(model_cfg, "conditioning_noise") and float(model_cfg.conditioning_noise) > 0:
                 c_noise = float(model_cfg.conditioning_noise)
                 mask = (torch.rand(BATCH_SIZE, 1, 1, device=device) < 0.4).float()

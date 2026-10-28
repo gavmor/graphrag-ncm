@@ -149,6 +149,7 @@ def build_extraction_tokenizer_cfg() -> DictConfig:
                 "pre_quant_norm_type": "group",
                 "use_qk_norm": True,
                 "dec_layers": 1,
+                "enc_layers": 2,
                 "vector_quantizer_config": {
                     "clss": "multiscale_residual_vector_quantizer",
                     "decay": 0.99,
@@ -188,6 +189,7 @@ def build_extraction_model_cfg() -> DictConfig:
             "use_level_encoding": True,
             "prefix_len": EXTRACTION_PREFIX_LEN,
             "raw_token_prefix": True,
+            "contextual_prefix": True,
             "prefix_pad_token_id": PAD_TOKEN_ID,
             "use_rope": True,
             "rope_base": 10000,
