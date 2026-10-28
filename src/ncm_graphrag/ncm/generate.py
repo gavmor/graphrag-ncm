@@ -23,9 +23,22 @@ from tokenization.hf_tokenizer import HFTokenizer
 
 from ncm_graphrag.ncm.task_registry import TASKS
 
+_BLOCK_COMPILED = False
+
+
+def _ensure_block_compiled():
+    global _BLOCK_COMPILED
+    if not _BLOCK_COMPILED and torch.cuda.is_available():
+        from models.common import Block
+
+        Block.forward = torch.compile(Block.forward, dynamic=True)  # ty: ignore[invalid-assignment]
+        _BLOCK_COMPILED = True
+
 
 class NCMTaskGenerator:
-    def __init__(self, task: str = "mapstage", device: str | None = None):
+    def __init__(self, task: str = "mapstage", device: str | None = None, compile_blocks: bool = True):
+        if compile_blocks:
+            _ensure_block_compiled()
         spec = TASKS[task]
         self.task = task
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
