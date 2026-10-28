@@ -227,10 +227,14 @@ class NCMTaskGenerator:
         return out
 
     def _dec(self, ids: list[int]) -> str:
-        ids = list(ids)
+        text = self.pre_tok.decode([t for t in ids if t != self.pad_id], skip_special_tokens=True)
+        if "<|COMPLETE|>" in text:
+            return text[: text.index("<|COMPLETE|>") + len("<|COMPLETE|>")]
         if self.cut_at_eos and self.eos_id in ids:
-            ids = ids[: ids.index(self.eos_id)]
-        return self.pre_tok.decode([t for t in ids if t not in (self.eos_id, self.pad_id)], skip_special_tokens=True)
+            return self.pre_tok.decode(
+                [t for t in ids[: ids.index(self.eos_id)] if t != self.pad_id], skip_special_tokens=True
+            )
+        return text
 
     @torch.inference_mode()
     def generate(self, prefix_text: str) -> str:

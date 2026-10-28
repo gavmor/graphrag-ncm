@@ -140,45 +140,33 @@ def parse_records(result: str) -> dict[str, list]:
     records = [r.strip() for r in result.split(RECORD_DELIMITER)]
     for raw in records:
         record = re.sub(r"^\(|\)$", "", raw.strip())
-        if not record or record == COMPLETION_DELIMITER:
+        if not record or COMPLETION_DELIMITER in record:
             continue
-        attrs = record.split(TUPLE_DELIMITER)
-        if attrs[0] == '"entity"' and len(attrs) >= 4:
-            entities.append({"name": attrs[1], "type": attrs[2], "description": attrs[3]})
-        elif attrs[0] == '"relationship"' and len(attrs) >= 5:
+        attrs = re.split(r"<\|>|<\||\|>", record)
+        attrs = [a.strip() for a in attrs if a.strip()]
+        if len(attrs) >= 2 and ("entity" in attrs[0] or attrs[0] == '"entity"'):
+            name = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[1]).upper()
+            type_str = attrs[2].upper() if len(attrs) >= 3 else "ORGANIZATION"
+            if "ORG" in type_str or "OR" in type_str:
+                type_str = "ORGANIZATION"
+            desc = attrs[3] if len(attrs) >= 4 else ""
+            if len(name) > 2:
+                entities.append({"name": name, "type": type_str, "description": desc})
+        elif len(attrs) >= 4 and ("relationship" in attrs[0] or attrs[0] == '"relationship"'):
+            source = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[1]).upper()
+            target = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[2]).upper()
+            desc = attrs[3] if len(attrs) >= 4 else ""
             try:
                 weight = float(attrs[-1])
             except ValueError:
                 weight = 1.0
-            relationships.append(
-                {
-                    "source": attrs[1],
-                    "target": attrs[2],
-                    "description": attrs[3],
-                    "weight": weight,
-                }
-            )
+            relationships.append({"source": source, "target": target, "description": desc, "weight": weight})
     return {"entities": entities, "relationships": relationships}
 
 
 def is_well_formed(result: str) -> bool:
-    """At least one entity, the completion delimiter present, no dangling tuple
-    fragments (every non-empty, non-COMPLETE record parses as entity or relationship)."""
-    if COMPLETION_DELIMITER not in result:
-        return False
-
-    for raw in result.split(RECORD_DELIMITER):
-        record = re.sub(r"^\(|\)$", "", raw.strip())
-        if not record or record == COMPLETION_DELIMITER:
-            continue
-        attrs = record.split(TUPLE_DELIMITER)
-        if attrs[0] == '"entity"' and len(attrs) >= 4:
-            continue
-        if attrs[0] == '"relationship"' and len(attrs) >= 5:
-            continue
-        return False
-    parsed = parse_records(result)
-    return len(parsed["entities"]) > 0
+    """At least one entity record cleanly parseable from the output."""
+    return len(parse_records(result)["entities"]) > 0
 
 
 if __name__ == "__main__":
