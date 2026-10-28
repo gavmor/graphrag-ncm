@@ -99,7 +99,7 @@ class ExtractionExample:
 
 
 def _record_entity(name: str, domain: str) -> str:
-    desc = f"{name} operates in {domain} and was named in the text unit."
+    desc = f"Operates in {domain}."
     return f'("entity"{TUPLE_DELIMITER}{name.upper()}{TUPLE_DELIMITER}ORGANIZATION{TUPLE_DELIMITER}{desc})'
 
 

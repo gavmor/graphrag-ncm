@@ -124,8 +124,8 @@ def build_generation_cfg() -> DictConfig:
 # decouple into a smaller dedicated entity model.
 
 EXTRACTION_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "extraction"
-EXTRACTION_LEVELS = [4, 8, 16, 32, 96]
-EXTRACTION_CONTEXT_LENGTH = 96  # bounded output length (gpt2 tokens); real examples run ~75-90
+EXTRACTION_LEVELS = [2, 5, 10, 20, 80]
+EXTRACTION_CONTEXT_LENGTH = 80  # bounded output length (gpt2 tokens); compact template runs ~55-68
 EXTRACTION_PREFIX_LEN = 64  # bounded input length (gpt2 tokens) for "entity_types + text_unit"
 
 
@@ -170,15 +170,18 @@ def build_extraction_tokenizer_cfg() -> DictConfig:
 
 
 def build_extraction_model_cfg() -> DictConfig:
-    """NextConceptTransformer config for the extraction task, same architecture family
-    as the map-stage model (raw_token_prefix + query_level0 + tie_heads_to_codebook)."""
+    """NextConceptTransformer config for the extraction task:
+    - Scaled capacity: 6 layers, 256 embedding dim (4.84M params, vs toy 0.84M)
+    - Exposure bias mitigation: conditioning_noise=0.08 (docs/NCM Training for GraphRAG.md §5)
+    - Compact 64-token target representation with 5 levels [2, 4, 8, 16, 64]
+    """
     cfg = OmegaConf.create(
         {
-            "n_layer": 4,
+            "n_layer": 6,
             "n_head": 4,
             "bias": True,
             "dropout": 0.1,
-            "n_embd": 128,
+            "n_embd": 256,
             "vocab_size": [48, 48, 48, 48, 48],
             "attn_pattern": "block_diagonal",
             "use_positional_encoding": True,
@@ -192,6 +195,7 @@ def build_extraction_model_cfg() -> DictConfig:
             "query_level0": True,
             "tie_heads_to_codebook": True,
             "tie_heads_learn_scale": True,
+            "conditioning_noise": 0.08,
             "save_path": str(EXTRACTION_ARTIFACT_DIR / "generator.pt"),
         }
     )

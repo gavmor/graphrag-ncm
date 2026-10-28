@@ -96,6 +96,10 @@ def main() -> None:
             idx = vqvae.encode(target_batch)  # (B, L) codebook indices across all levels
             rest_embed = vqvae.vq.idx_to_ncm_input(idx)  # (B, L - levels[0], embed_dim)
             z_prefix = vqvae.encoder.wte(prefix_batch)[:, : model_cfg.prefix_len, :]
+            if hasattr(model_cfg, "conditioning_noise") and float(model_cfg.conditioning_noise) > 0:
+                c_noise = float(model_cfg.conditioning_noise)
+                mask = (torch.rand(BATCH_SIZE, 1, 1, device=device) < 0.4).float()
+                rest_embed = rest_embed + mask * (c_noise * torch.randn_like(rest_embed))
         l0_embed = net.build_l0_query_input(BATCH_SIZE, dtype=rest_embed.dtype)
         x_target = torch.cat([l0_embed, rest_embed], dim=1)
         x = torch.cat([z_prefix, x_target], dim=1)
