@@ -45,6 +45,8 @@ class NCMTaskGenerator:
         spec = TASKS[task]
         self.task = task
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if self.device.startswith("cuda"):
+            torch.backends.cudnn.benchmark = True
         tok_cfg = spec.build_tokenizer_cfg()
         model_cfg = spec.build_model_cfg()
         gen_cfg = spec.build_generation_cfg()
