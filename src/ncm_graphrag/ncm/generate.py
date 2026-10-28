@@ -61,7 +61,6 @@ class NCMTaskGenerator:
         gen_state = torch.load(model_cfg.save_path, map_location="cpu", weights_only=False)
         self.net.load_state_dict(gen_state["model"], strict=True)
         self.net.eval()
-
         self.temp = float(gen_cfg.temperature)
         self.top_k = int(gen_cfg.top_k)
         self.top_p = float(gen_cfg.top_p)
@@ -71,6 +70,17 @@ class NCMTaskGenerator:
         adj = str(gen_cfg.adjacency_penalty)
         self.adj = [float(v) for v in adj.split(",")] if adj else None
         self.cut_at_eos = bool(gen_cfg.cut_at_eos)
+        self._optimize_net()
+
+    def _optimize_net(self) -> None:
+        orig_sample = self.net._sample_level_raw
+
+        def _fast_sample_level_raw(logits, temperature, top_k, top_p):
+            if top_k == 1 or temperature == 0:
+                return logits.argmax(dim=-1)
+            return orig_sample(logits, temperature, top_k, top_p)
+
+        self.net._sample_level_raw = _fast_sample_level_raw  # ty: ignore[invalid-assignment]
 
     def _prefix_tensor(self, text: str, n: int = 1) -> torch.Tensor:
         ids = self.pre_tok.encode(text)
