@@ -1,3 +1,10 @@
+> `docs/NCM Training for GraphRAG.md` in this same directory is unvetted AI-generated
+> background reading (see its own header disclaimer) — a second, more speculative take
+> on the same problem (targets entity/relation extraction instead of the map stage,
+> assumes a 2M-sample/8xH100-cluster scale this project never attempted). It is kept
+> for context, not as a design this project follows; where the two disagree, this file
+> and `docs/architecture.md` describe what was actually built and verified.
+
 # Constraints and scope decisions
 
 ## 1. No pretrained checkpoint fits GraphRAG's tasks
