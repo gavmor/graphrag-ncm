@@ -26,13 +26,22 @@ covariate model" -- this is the entity model (see docs/constraints.md ##6 for th
 measured before/after and docs/architecture.md for the full account); a relationship
 model following the same recipe at a shorter bound is the natural next slice.
 
-This generator produces a bounded, closed-vocabulary version of the grammar -- 2
-entities per text unit -- per docs/constraints.md's "closed-vocabulary synthetic data"
-scope note (same pattern as map_stage.py). The real graph_extractor.py few-shot
-examples sometimes omit the final "##" before "<|COMPLETE|>", which makes the last
-record's trailing field fail to parse cleanly in graphrag's own parser -- this
-generator always includes the trailing "##" so every synthetic example round-trips
-through the *unmodified* real parser without hitting that edge case.
+**Open-vocabulary entity names (revised).** A previous version drew entity names from a
+closed list of 12. That made the task memorizable rather than extractive: the trained
+model reached 97% Entity F1 on held-out examples from that list while scoring **0.00%
+F1 on entity names it had never seen** -- it was recalling names from its weights, not
+copying them out of the source text. Any metric computed against a 12-name vocabulary
+rewards memorisation, so the pool is now 800 combinatorial organisation names
+(40 stems x 20 suffixes, ~320k unordered pairs). A few thousand training examples can
+only cover a small fraction of those pairs, so passing the task requires conditioning on
+the prefix text.
+
+This generator produces a bounded version of the grammar -- 2 entities per text unit --
+in a closed *domain* vocabulary (12 domains) but an open *entity* vocabulary. The real
+graph_extractor.py few-shot examples sometimes omit the final "##" before
+"<|COMPLETE|>", which makes the last record's trailing field fail to parse cleanly in
+graphrag's own parser -- this generator always includes the trailing "##" so every
+synthetic example round-trips through the *unmodified* real parser.
 """
 
 import json
@@ -59,20 +68,82 @@ DOMAINS = [
     "climate migration",
 ]
 
-ENTITIES = [
-    "Atlas Corp",
-    "Nile Labs",
-    "Meridian Group",
-    "Solace Inc",
-    "Vantage Partners",
-    "Orbit Dynamics",
-    "Harbor Systems",
-    "Crestline LLC",
-    "Union Robotics",
-    "Alder Biotech",
-    "Fenwick Holdings",
-    "Stratus Energy",
+# Open, combinatorial organisation-name pool.
+#
+# The original 12-name closed list made the task memorizable rather than extractive: a
+# trained model reached 97% Entity F1 on held-out *examples* drawn from that list but
+# scored 0.00% on entity names it had never seen, i.e. it recalled names from its weights
+# instead of copying them out of the source text. Any metric measured against a 12-name
+# vocabulary therefore rewards memorisation, not extraction. 40 stems x 20 suffixes gives
+# 800 distinct names (~320k unordered pairs), so a training run of a few thousand examples
+# can only cover a tiny fraction of (name, name) combinations and the model is forced to
+# condition on the prefix text.
+_NAME_STEMS = [
+    "Atlas",
+    "Nile",
+    "Meridian",
+    "Solace",
+    "Vantage",
+    "Orbit",
+    "Harbor",
+    "Crestline",
+    "Union",
+    "Alder",
+    "Fenwick",
+    "Stratus",
+    "Quillon",
+    "Marlowe",
+    "Peregrine",
+    "Ashford",
+    "Tessellate",
+    "Northwind",
+    "Calder",
+    "Vireo",
+    "Halcyon",
+    "Brightmoor",
+    "Kestrel",
+    "Lumen",
+    "Sable",
+    "Ardent",
+    "Bramble",
+    "Cobalt",
+    "Dovetail",
+    "Ember",
+    "Foundry",
+    "Granite",
+    "Hollow",
+    "Ironwood",
+    "Juniper",
+    "Keystone",
+    "Lattice",
+    "Mosaic",
+    "Nimbus",
+    "Onyx",
 ]
+_NAME_SUFFIXES = [
+    "Corp",
+    "Labs",
+    "Group",
+    "Inc",
+    "Partners",
+    "Dynamics",
+    "Systems",
+    "LLC",
+    "Robotics",
+    "Biotech",
+    "Holdings",
+    "Energy",
+    "Trust",
+    "Research",
+    "Works",
+    "Ltd",
+    "Capital",
+    "Ventures",
+    "Analytics",
+    "Industries",
+]
+ENTITIES = [f"{stem} {suffix}" for stem in _NAME_STEMS for suffix in _NAME_SUFFIXES]
+
 
 RELATION_VERBS = [
     "partnered with",
