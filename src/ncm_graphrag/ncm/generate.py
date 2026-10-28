@@ -16,7 +16,10 @@ verified by reading `NextConceptTransformer.generate()`'s branching rather than
 assumed. `_dec()` below is otherwise the unmodified upstream logic.
 """
 
+from typing import Any
+
 import torch
+import torch.nn.functional as F
 from models.next_concept import NextConceptTransformer
 from models.vqvae import VQVAE
 from tokenization.hf_tokenizer import HFTokenizer
@@ -81,6 +84,35 @@ class NCMTaskGenerator:
             return orig_sample(logits, temperature, top_k, top_p)
 
         self.net._sample_level_raw = _fast_sample_level_raw  # ty: ignore[invalid-assignment]
+
+        p_len = self.net.prefix_len
+        dev = self.device
+        net_ref: Any = self.net
+        for hidx, l_cur in enumerate(net_ref.levels[net_ref._lvl_first :]):
+            m = torch.zeros(1, 1, p_len + l_cur, p_len + l_cur, device=dev)
+            m[:, :, :p_len, p_len:] = float("-inf")
+            net_ref.register_buffer(f"_base_gen_mask_{hidx}", m, persistent=False)
+
+        def _fast_decode_level_logits(x, prefix_emb, level_idx, pad_bias=None, hidx=None):
+            h_idx = level_idx if hidx is None else hidx
+            l_curr = net_ref.levels[level_idx + 1]
+            x_cat = torch.cat([prefix_emb, x], dim=1)
+            base_mask = getattr(net_ref, f"_base_gen_mask_{h_idx}")
+            gen_mask = base_mask + F.pad(pad_bias, (0, l_curr)) if pad_bias is not None else base_mask
+            rope_k = (
+                (
+                    getattr(net_ref, f"rope_cos_gen_{h_idx}"),
+                    getattr(net_ref, f"rope_sin_gen_{h_idx}"),
+                )
+                if net_ref.use_rope
+                else None
+            )
+            for block in net_ref.transformer.blocks:
+                x_cat = block(x_cat, attn_mask=gen_mask, rope_cos_sin=rope_k)
+            x_cat = net_ref.transformer.ln_f(x_cat)
+            return net_ref.lm_heads[h_idx](x_cat[:, p_len:, :])
+
+        self.net._decode_level_logits = _fast_decode_level_logits  # ty: ignore[invalid-assignment]
 
     def _prefix_tensor(self, text: str, n: int = 1) -> torch.Tensor:
         ids = self.pre_tok.encode(text)
