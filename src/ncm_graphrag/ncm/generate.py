@@ -221,6 +221,6 @@ class NCMTaskGenerator:
             cfg_scale=self.cfg_scale,
             cfg_null_eos=self.eos_id,
         )
-        _, zl = self.vqvae.vq.idx_to_zhats(g, return_zlevels=True)
-        ids = self._pick_tokens(self.vqvae.decoder(zl[-1])).tolist()
+        z_q = self.vqvae.vq.idx_to_z_q(g)
+        ids = self._pick_tokens(self.vqvae.decoder(z_q)).tolist()
         return [self._dec(row) for row in ids]
