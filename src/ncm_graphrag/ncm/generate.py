@@ -59,6 +59,14 @@ class NCMTaskGenerator:
         self.adj = [float(v) for v in adj.split(",")] if adj else None
         self.cut_at_eos = bool(gen_cfg.cut_at_eos)
 
+    def _prefix_tensor(self, text: str, n: int = 1) -> torch.Tensor:
+        ids = self.pre_tok.encode(text)
+        length = min(len(ids), self.prefix_len)
+        x = torch.full((n, self.prefix_len), self.pad_id, dtype=torch.long, device=self.device)
+        if length > 0:
+            x[:, :length] = torch.tensor(ids[:length], dtype=torch.long, device=self.device)
+        return x
+
     def _prefix_ids(self, text: str) -> list[int]:
         ids = self.pre_tok.encode(text)
         return (ids[: self.prefix_len] + [self.pad_id] * self.prefix_len)[: self.prefix_len]
@@ -96,7 +104,7 @@ class NCMTaskGenerator:
             ids = ids[: ids.index(self.eos_id)]
         return self.pre_tok.decode([t for t in ids if t not in (self.eos_id, self.pad_id)], skip_special_tokens=True)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate(self, prefix_text: str) -> str:
         """One conditional generation for this task: bounded prefix text in, bounded
         task-shaped text out (JSON for mapstage, graphrag's delimiter-tuple grammar
@@ -109,7 +117,7 @@ class NCMTaskGenerator:
         """
         return self._decode_batch(prefix_text, n=1, temp=self.temp, top_k=self.top_k, top_p=self.top_p)[0]
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate_best_of_n(self, prefix_text: str, n: int = 8, sample_temp: float = 0.9, sample_top_k: int = 16) -> str:
         """Sample `n` candidates in one batched forward pass; among those passing this
         task's well-formedness check (`task_registry.TaskSpec.is_well_formed`), return
@@ -146,10 +154,9 @@ class NCMTaskGenerator:
         ]
         return valid[max(range(len(valid)), key=lambda i: scores[i])]
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def _decode_batch(self, prefix_text: str, n: int, temp: float, top_k: int, top_p: float) -> list[str]:
-        prefix_ids = self._prefix_ids(prefix_text)
-        x = torch.tensor([prefix_ids] * n, device=self.device)
+        x = self._prefix_tensor(prefix_text, n)
         g = self.net.generate(
             None,
             x,
