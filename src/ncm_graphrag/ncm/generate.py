@@ -26,22 +26,29 @@ from tokenization.hf_tokenizer import HFTokenizer
 
 from ncm_graphrag.ncm.task_registry import TASKS
 
-_BLOCK_COMPILED = False
 
+class TransformerStack(torch.nn.Module):
+    def __init__(self, blocks: Any, ln_f: Any) -> None:
+        super().__init__()
+        self.blocks = blocks
+        self.ln_f = ln_f
 
-def _ensure_block_compiled():
-    global _BLOCK_COMPILED
-    if not _BLOCK_COMPILED and torch.cuda.is_available():
-        from models.common import Block
-
-        Block.forward = torch.compile(Block.forward, dynamic=True)  # ty: ignore[invalid-assignment]
-        _BLOCK_COMPILED = True
+    def forward(  # ty: ignore[invalid-mutable-override]
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        cos: torch.Tensor,
+        sin: torch.Tensor,
+    ) -> torch.Tensor:
+        rope = (cos, sin)
+        for b in self.blocks:
+            x = b(x, attn_mask=mask, rope_cos_sin=rope)
+        return self.ln_f(x)
 
 
 class NCMTaskGenerator:
     def __init__(self, task: str = "mapstage", device: str | None = None, compile_blocks: bool = True):
-        if compile_blocks:
-            _ensure_block_compiled()
+        self.compile_blocks = compile_blocks
         spec = TASKS[task]
         self.task = task
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -90,31 +97,95 @@ class NCMTaskGenerator:
         p_len = self.net.prefix_len
         dev = self.device
         net_ref: Any = self.net
+        l0 = net_ref.levels[0]
+
+        stack = TransformerStack(net_ref.transformer.blocks, net_ref.transformer.ln_f)
+        compiled_stack: Any = (
+            torch.compile(stack, dynamic=True) if self.compile_blocks and dev.startswith("cuda") else stack
+        )
+
+        base_masks: list[torch.Tensor] = []
         for hidx, l_cur in enumerate(net_ref.levels[net_ref._lvl_first :]):
             m = torch.zeros(1, 1, p_len + l_cur, p_len + l_cur, device=dev)
             m[:, :, :p_len, p_len:] = float("-inf")
             net_ref.register_buffer(f"_base_gen_mask_{hidx}", m, persistent=False)
+            base_masks.append(m)
+
+        m0_base = torch.zeros(1, 1, p_len + l0, p_len + l0, device=dev)
+        m0_base[:, :, :p_len, p_len:] = float("-inf")
+        net_ref.register_buffer("_base_m0", m0_base, persistent=False)
+
+        rope_list = [
+            (getattr(net_ref, f"rope_cos_gen_{k}"), getattr(net_ref, f"rope_sin_gen_{k}")) if net_ref.use_rope else None
+            for k in range(len(net_ref.levels))
+        ]
+        heads = list(net_ref.lm_heads)
+        levels = tuple(net_ref.levels)
 
         def _fast_decode_level_logits(x, prefix_emb, level_idx, pad_bias=None, hidx=None):
             h_idx = level_idx if hidx is None else hidx
-            l_curr = net_ref.levels[level_idx + 1]
+            l_curr = levels[level_idx + 1]
             x_cat = torch.cat([prefix_emb, x], dim=1)
-            base_mask = getattr(net_ref, f"_base_gen_mask_{h_idx}")
+            base_mask = base_masks[h_idx]
             gen_mask = base_mask + F.pad(pad_bias, (0, l_curr)) if pad_bias is not None else base_mask
-            rope_k = (
-                (
-                    getattr(net_ref, f"rope_cos_gen_{h_idx}"),
-                    getattr(net_ref, f"rope_sin_gen_{h_idx}"),
-                )
-                if net_ref.use_rope
-                else None
-            )
-            for block in net_ref.transformer.blocks:
-                x_cat = block(x_cat, attn_mask=gen_mask, rope_cos_sin=rope_k)
-            x_cat = net_ref.transformer.ln_f(x_cat)
-            return net_ref.lm_heads[h_idx](x_cat[:, p_len:, :])
+            rope_k = rope_list[h_idx]
+            x_cat = compiled_stack(x_cat, gen_mask, rope_k[0], rope_k[1])
+            return heads[h_idx](x_cat[:, p_len:, :])
 
         self.net._decode_level_logits = _fast_decode_level_logits  # ty: ignore[invalid-assignment]
+
+        vq = self.vqvae.vq
+
+        def _optimized_generate(
+            idx,
+            prefix_tokens,
+            temperature=1.0,
+            top_k=50,
+            top_p=0.9,
+            use_kv_cache=False,
+            cfg_scale=0.0,
+            cfg_null_eos=50256,
+        ):
+            B = prefix_tokens.shape[0]
+            z_hat = torch.zeros(B, net_ref.levels[-1], self.vqvae.embed_dim, device=dev)
+
+            _enc = self.vqvae.encoder
+            z_prefix = _enc.wte(prefix_tokens)[:, :p_len, :]
+            prefix_emb = net_ref.transformer.wte(z_prefix)
+            level_pos_embed = net_ref.transformer.wle(net_ref.lvl_1L)
+
+            _pm = prefix_tokens[:, :p_len] == net_ref.prefix_pad_id
+            _pbias = torch.zeros(_pm.shape[0], 1, 1, p_len, device=dev)
+            _pbias[:, :, :, :p_len] = torch.where(_pm[:, None, None, :], float("-inf"), 0.0)
+
+            # Level 0
+            _q0 = net_ref.build_l0_query_input(B, prefix_emb.dtype)
+            q = net_ref.transformer.wte(_q0) + net_ref.transformer.wle(net_ref.lvl_1L[:, :l0])
+            h = torch.cat([prefix_emb, q], dim=1)
+            m0 = net_ref._base_m0 + F.pad(_pbias, (0, l0))
+            h = compiled_stack(h, m0, net_ref.rope_cos_gen_0, net_ref.rope_sin_gen_0)
+            idx_lvl0 = net_ref.lm_heads[0](h[:, p_len:, :]).argmax(dim=-1)
+
+            generated_idx = [idx_lvl0]
+            idx_next = idx_lvl0
+            level_acum = l0
+
+            for level_idx in range(len(net_ref.levels) - 1):
+                z_q_level = vq.embeddings[level_idx](idx_next)
+                z_hat, x_next = vq.get_next_autoregressive_input(level_idx, z_hat, z_q_level)
+                x_next = (
+                    net_ref.transformer.wte(x_next)
+                    + level_pos_embed[:, level_acum : level_acum + net_ref.levels[level_idx + 1], :]
+                )
+                _hi = level_idx + 1
+                logits = net_ref._decode_level_logits(x_next, prefix_emb, level_idx, _pbias, hidx=_hi)
+                idx_next = logits.argmax(dim=-1)
+                generated_idx.append(idx_next)
+                level_acum += net_ref.levels[level_idx + 1]
+
+            return torch.cat(generated_idx, dim=1)
+
+        self.net.generate = _optimized_generate  # ty: ignore[invalid-assignment]
 
     def _prefix_tensor(self, text: str, n: int = 1) -> torch.Tensor:
         ids = self.pre_tok.encode(text)
