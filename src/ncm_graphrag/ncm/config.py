@@ -178,10 +178,10 @@ def build_extraction_model_cfg() -> DictConfig:
     cfg = OmegaConf.create(
         {
             "n_layer": 6,
-            "n_head": 4,
+            "n_head": 6,
             "bias": True,
             "dropout": 0.1,
-            "n_embd": 256,
+            "n_embd": 384,
             "vocab_size": [48, 48, 48, 48, 48],
             "attn_pattern": "block_diagonal",
             "use_positional_encoding": True,
