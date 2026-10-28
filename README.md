@@ -2,29 +2,38 @@
 
 Exploring [HazyResearch/ncm](https://github.com/HazyResearch/ncm) (Next-Concept
 Modeling: parallel, coarse-to-fine, non-autoregressive text generation) as an
-accelerated backend for one bounded-output stage of
-[microsoft/graphrag](https://github.com/microsoft/graphrag): the Global Search
-map-stage relevance scoring call.
+accelerated backend for bounded-output stages of
+[microsoft/graphrag](https://github.com/microsoft/graphrag): Global Search map-stage
+relevance scoring, and entity extraction.
 
-**Start here:** [`docs/constraints.md`](docs/constraints.md) — the two hard
-constraints that shape everything else (no pretrained NCM checkpoint fits any
-GraphRAG task, and no training code is released for NCM at all — this project trains
-its own tokenizer+generator pair from scratch against the released model code).
-Then [`docs/architecture.md`](docs/architecture.md) for the integration seam,
-pipeline diagrams, and actual (not projected) run results.
+**Start here:** [`docs/constraints.md`](docs/constraints.md) — the hard constraints
+that shape everything else (no pretrained NCM checkpoint fits any GraphRAG task, no
+training code is released for NCM at all, so this project trains its own
+tokenizer+generator pairs from scratch against the released model code) and the real
+measured findings from building a second slice (a decode-recipe bug found and fixed,
+structural-validity-vs-content-correctness gap). Then
+[`docs/architecture.md`](docs/architecture.md) for the integration seams, pipeline
+diagrams, and actual (not projected) run results for both slices.
+[`docs/NCM Training for GraphRAG.md`](docs/NCM%20Training%20for%20GraphRAG.md) is
+unvetted AI-generated background reading (see its own header), not a design this
+project strictly follows — where they disagree, `constraints.md`/`architecture.md`
+describe what was actually built and measured.
 
 ## What's here
 
-- `src/ncm_graphrag/data/map_stage.py` — synthetic GraphRAG map-stage dataset
-  (community report + query → `{"points":[{"description","score"}]}` JSON).
+- `src/ncm_graphrag/data/{map_stage,extraction}.py` — synthetic datasets for the two
+  slices: community report + query → `{"points":[{"description","score"}]}` JSON; text
+  unit → graphrag's real entity delimiter-tuple grammar (`("entity"<|>...)##...##<|COMPLETE|>`).
 - `src/ncm_graphrag/ncm/` — from-scratch NCM tokenizer + generator trainer
-  (`train_tokenizer.py`, `train_generator.py`) and inference (`generate.py`,
-  best-of-N JSON-validity reranking).
-- `src/ncm_graphrag/serve/` — litellm `CustomLLM` adapter serving the trained
-  checkpoint as an OpenAI-compatible endpoint.
+  (`train_tokenizer.py --task {mapstage,extraction}`, `train_generator.py --task ...`),
+  a task registry (`task_registry.py`) so both slices share one trainer/server
+  implementation, and inference (`generate.py`'s `NCMTaskGenerator`, with Minimum
+  Bayes Risk best-of-N reranking).
+- `src/ncm_graphrag/serve/` — litellm `CustomLLM` adapters serving both trained
+  checkpoints as OpenAI-compatible endpoints from one proxy process.
 - `src/ncm_graphrag/graphrag_integration/` — `HybridCompletion` (NCM for the map
-  stage, a standard AR LLM for reduce/final-answer synthesis) and an end-to-end demo
-  against graphrag's real `GlobalSearch` class.
+  stage, a standard AR LLM for reduce/final-answer synthesis) plus two end-to-end demos
+  against graphrag's real, unmodified `GlobalSearch` and `GraphExtractor` classes.
 - `third_party/{ncm,graphrag}` — upstream repos as git submodules (code only; see
   `docs/constraints.md` #5 for why checkpoints aren't duplicated here).
 
@@ -43,20 +52,25 @@ pipeline diagrams, and actual (not projected) run results.
 ## Reproduce
 
 ```bash
-# 1. Train the tiny NCM tokenizer + generator (this project's venv, ~3 min on a GPU)
+# 1. Train both tiny NCM tokenizer+generator pairs (this project's venv, ~10 min total on a GPU)
 uv sync
-uv run python -m ncm_graphrag.ncm.train_tokenizer
-uv run python -m ncm_graphrag.ncm.train_generator
+uv run python -m ncm_graphrag.ncm.train_tokenizer --task mapstage
+uv run python -m ncm_graphrag.ncm.train_generator --task mapstage
+uv run python -m ncm_graphrag.ncm.train_tokenizer --task extraction
+uv run python -m ncm_graphrag.ncm.train_generator --task extraction
 
-# 2. Serve it as an OpenAI-compatible endpoint
+# 2. Serve both as OpenAI-compatible endpoints (one proxy, two models)
 uv run litellm --config src/ncm_graphrag/serve/litellm_config.yaml --port 4010
 
-# 3. Run the real-graphrag end-to-end demo (graphrag's own venv, separate terminal)
+# 3. Run the real-graphrag end-to-end demos (graphrag's own venv, separate terminal)
 cd third_party/graphrag && uv sync
-NCM_LITELLM_BASE=http://127.0.0.1:4010/v1 \
-  PYTHONPATH=../../src \
+NCM_LITELLM_BASE=http://127.0.0.1:4010/v1 PYTHONPATH=../../src \
   ANTHROPIC_API_KEY=... ANTHROPIC_WORKSPACE_ID=... \
   uv run --package graphrag python ../../src/ncm_graphrag/graphrag_integration/run_map_stage_demo.py
+
+NCM_LITELLM_BASE=http://127.0.0.1:4010/v1 PYTHONPATH=../../src \
+  ANTHROPIC_API_KEY=... ANTHROPIC_WORKSPACE_ID=... \
+  uv run --package graphrag python ../../src/ncm_graphrag/graphrag_integration/run_extraction_demo.py
 ```
 
 ## Project tooling
@@ -70,11 +84,23 @@ uv run ruff check . && uv run ruff format --check . && uv run ty check .
 
 ## Status / next steps
 
-One vertical slice end-to-end: trained-from-scratch NCM tokenizer+generator → served
-over HTTP → wired into graphrag's real `GlobalSearch` as the map-stage backend via
-pure config (`HybridCompletion` routes map calls to NCM, reduce calls to Claude).
-See `docs/architecture.md` for what the real run surfaced (NCM's single-report-per-call
-training scope vs. graphrag's real multi-report batching) and the three other
-brief ideas (parallel entity/claim extraction, hierarchical community-report drafting,
-drift-search routing) that would each need their own synthetic dataset + trained pair
-following the same recipe.
+Two vertical slices end-to-end: trained-from-scratch NCM tokenizer+generator pairs →
+served over HTTP → wired into graphrag's real, unmodified `GlobalSearch` and
+`GraphExtractor` classes via pure config (no graphrag code changes).
+
+- **Map stage**: `HybridCompletion` routes map calls to NCM, reduce calls to Claude.
+  Real run surfaced NCM's single-report-per-call training scope vs. graphrag's real
+  multi-report batching (see `docs/architecture.md`).
+- **Entity extraction**: entity-only (not entity+relationship — a first attempt at the
+  fuller grammar degraded badly; see `docs/constraints.md` #6 for the measured before/
+  after). Building it surfaced and fixed a real bug: the decode-penalty recipe copied
+  from the released xsum/wmt14 checkpoints actively suppressed this grammar's
+  legitimate repeated structure (0/30 well-formed → 30/30 once disabled for this task).
+  Structural validity is solid; content correctness is still rough on the second
+  extracted entity, consistent with this generator being ~143x smaller than the scale
+  the background doc itself prescribes.
+
+Natural next slices following the same recipe: relationship extraction (decoupled
+from entity extraction, per the background doc's own suggestion), community-report
+generation, and training on real graphrag-produced data instead of closed-vocabulary
+synthetic templates (the biggest remaining gap for either slice to be production-useful).

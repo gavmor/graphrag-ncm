@@ -3,10 +3,16 @@ model_list:
     litellm_params:
       model: ncm/ncm-mapstage
       custom_llm_provider: ncm
+  - model_name: ncm-extraction
+    litellm_params:
+      model: ncm_extraction/ncm-extraction
+      custom_llm_provider: ncm_extraction
 
 litellm_settings:
   custom_provider_map:
     - provider: ncm
       custom_handler: custom_handler.ncm_mapstage_llm
+    - provider: ncm_extraction
+      custom_handler: custom_handler.ncm_extraction_llm
 general_settings:
   master_key: sk-ncm-local

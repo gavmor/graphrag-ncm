@@ -45,24 +45,30 @@ synthetic data" — a materially larger scope than the brief assumed. See
 reverse-engineered training contract (documented inline with exact `models/*.py` line
 references).
 
-## 3. Scope: one vertical slice, not all four ideas
+## 3. Scope: two vertical slices (map-stage, then extraction), not all four ideas
 
 Per the brief's own hybrid table and the scout research into graphrag's actual LLM
-seam (`docs/architecture.md`), **Global Search map-stage scoring** is the best-fitting
+seam (`docs/architecture.md`), **Global Search map-stage scoring** was the best-fitting
 first slice:
 - Single-shot structured JSON output (`{"points":[{"description":...,"score":...}]}`),
-  no multi-turn "gleaning" loop (unlike entity/claim extraction, which requires
-  variable-length multi-round generation — a real prompt/parsing redesign, not just a
-  backend swap).
+  no multi-turn "gleaning" loop.
 - `graphrag`'s model-provider abstraction (`graphrag-llm` package, LiteLLM-backed) makes
   swapping backends a pure config change for any OpenAI-compatible HTTP endpoint — no
   graphrag code changes needed to point it at a locally served NCM checkpoint.
 
-Community-report generation and entity/claim extraction are documented as natural
-follow-on slices (same training+serving recipe, different synthetic dataset and output
-schema) but are out of scope for this pass.
+A second slice, **entity/relationship extraction**, was added afterward (see
+`docs/NCM Training for GraphRAG.md`'s background inspiration and §6 below) once
+`src/ncm_graphrag/ncm/` was generalized to a task registry
+(`src/ncm_graphrag/ncm/task_registry.py`) so a second task didn't mean duplicating the
+trainer/serving code. Unlike the map stage, extraction's real call site
+(`graph_extractor.py:_process_document`) *does* use a multi-round "gleaning" loop —
+this project's NCM extraction model only covers the single first-round call
+(`max_gleanings=0`), not the gleaning continuation rounds (see §6).
 
-## 4. Known scope cuts in the vertical slice itself
+Community-report generation remains a natural follow-on slice (same training+serving
+recipe, different synthetic dataset and output schema) but is out of scope for this pass.
+
+## 4. Known scope cuts in the map-stage slice
 
 - **One community report per map call.** GraphRAG's real map stage packs as many
   community reports as fit in an 8000-token budget into one call and expects multiple
@@ -97,3 +103,61 @@ map-stage-specific checkpoints from scratch rather than reusing `lm1b`/`xsum` we
 (their tokenizers/vocab/output-length don't match the map-stage task — see §1). The
 reference venv at `/home/user/Desktop/ncm/repo/.venv` was used only to inspect installed
 package versions (torch build) while setting up this project's own `uv`-managed venv.
+
+## 6. Known scope cuts in the extraction slice, and a real measured bug found while building it
+
+- **No gleaning loop.** GraphRAG's real extraction call (`graph_extractor.py:_process_document`)
+  issues a first call, then up to `max_gleanings` more rounds (`CONTINUE_PROMPT`/
+  `LOOP_PROMPT`) asking the model whether it missed anything — a variable-length,
+  multi-turn dialog. NCM produces one bounded-length output per call; this project's
+  extraction model and `run_extraction_demo.py` both run with `max_gleanings=0`
+  (single-shot only). Covering the gleaning rounds would need either training NCM on
+  the continuation-turn shape too (a different, shorter bounded task: "what did you
+  miss, if anything") or accepting that NCM only replaces the first-pass call and an
+  AR LLM still handles any gleaning.
+- **Entity-only, not entity+relationship.** A first version targeted 2 entities + 1
+  relationship (`<|>`/`##`/`<|COMPLETE|>` grammar, ~140 gpt2 tokens, 6 VQ levels / 284
+  total codes). Its free-running generation degraded badly past roughly the first
+  entity — **0/30 well-formed, even with best-of-32 reranking.** Shrinking to entity-only
+  (2 entities, ~87 tokens, 5 levels / 156 codes — still larger than map-stage's 46) did
+  **not** fix it on its own (still 0/30). The actual cause, found by disabling pieces
+  one at a time: `src/ncm_graphrag/ncm/generate.py`'s frequency/adjacency-penalty decode
+  loop (copied from `eval_shard.py`, tuned for the released xsum/wmt14 checkpoints'
+  low-repetition natural-language targets) **actively suppresses the legitimate
+  cross-record repetition** in this grammar (two entity records share "ORGANIZATION",
+  "operates in `<domain>` and was named in the text unit."). Turning the penalty off
+  for this task alone: **28/30 well-formed greedy, 30/30 with best-of-4+** (measured
+  directly, see `docs/architecture.md`). This is why `build_extraction_generation_cfg`
+  sets `frequency_penalty=0`/`adjacency_penalty=""` while `build_generation_cfg`
+  (map-stage) keeps them on — the "reuse the released checkpoints' decode recipe"
+  default is actively wrong for a grammar with legitimate repeated structure, and this
+  was found empirically, not assumed. Relationship extraction (and the fuller
+  entity+relationship grammar) is a follow-on slice at a larger model/token budget —
+  directly matching the Gemini background doc's own suggestion to "decouple extraction
+  into two dedicated, parallel models."
+- **Structural validity ≠ content correctness.** Even after the penalty fix and with
+  MBR-style consensus reranking (`generate_best_of_n` now picks the well-formed
+  candidate with highest word-overlap similarity to the others, not just the first
+  valid one — a cheap Minimum Bayes Risk approximation, per the Gemini doc's own
+  recommendation), **0/10 sampled examples exactly matched their ground truth.** The
+  first entity per text unit is reliably correct; the second entity's name/description
+  frequently has substitution or duplication noise (e.g. "NILE LABS" → "NILELELENICS",
+  "operates in" → "operates operates in"). This is consistent with (not a surprise
+  given) the scale gap: this project's extraction generator is 0.84M non-embedding
+  parameters trained on 8,000 synthetic examples; the Gemini doc's own target is a
+  120M-parameter model (~143x larger) trained on ~1-2 billion tokens. MBR/best-of-N
+  reranking can only select among a small model's imperfect candidates — it cannot
+  manufacture the capacity a 143x-smaller model doesn't have.
+- **Closed-vocabulary, fixed-cardinality synthetic data.** `src/ncm_graphrag/data/extraction.py`
+  generates exactly 2 entities per text unit from the same closed ~12-domain/~12-entity
+  vocabulary as the map-stage dataset — not the variable 0-N entities real text
+  produces. The target format is graphrag's *exact* delimiter-tuple grammar, so a real
+  `GraphExtractor` parses this project's output with zero custom parsing code — but the
+  fixed cardinality is a training-time simplification, not something graphrag's format
+  itself requires.
+- **Nested codebook dropout reused, not newly implemented.** The Gemini background doc
+  (`docs/NCM Training for GraphRAG.md` §3) independently describes "nested codebook
+  dropout" as a mitigation for early-level collapse; this is the same mechanism as
+  `models/quant.py`'s `fine_drop` (lines 262-268, `aux.fine_drop.{prob,min_keep}` in
+  both tasks' tokenizer configs) — already present upstream and already used by the
+  map-stage tokenizer too, not something built newly for extraction.

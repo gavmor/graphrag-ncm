@@ -1,4 +1,5 @@
-"""Loads the trained map-stage tokenizer+generator pair and exposes `generate(text)`.
+"""Loads a trained tokenizer+generator pair for a registered task and exposes
+`generate(text)` / `generate_best_of_n(text)`.
 
 Decode logic (`_pick_tokens`/`_dec`) is copied from `scripts/eval_shard.py` to match
 the released checkpoints' decoding quality: greedy argmax is degenerate/repetitive at
@@ -9,10 +10,10 @@ The LM1B-style EOS-off-by-one bug noted in the task brief (generation seeds the
 sequence with EOS as a position-0 BOS, so `dec()`'s cut-at-first-EOS returns empty
 strings unless position 0 is skipped) is specific to `predict_level0` unconditional
 sampling (`NextConceptTransformer.generate(idx=None, ...)` with `query_level0=False`).
-This model uses `query_level0=True` (conditional generation via a learned query slot,
-like the released xsum checkpoint) -- that code path is never hit here, verified by
-reading `NextConceptTransformer.generate()`'s branching rather than assumed. `_dec()`
-below is otherwise the unmodified upstream logic.
+Both registered tasks use `query_level0=True` (conditional generation via a learned
+query slot, like the released xsum checkpoint) -- that code path is never hit here,
+verified by reading `NextConceptTransformer.generate()`'s branching rather than
+assumed. `_dec()` below is otherwise the unmodified upstream logic.
 """
 
 import torch
@@ -20,15 +21,18 @@ from models.next_concept import NextConceptTransformer
 from models.vqvae import VQVAE
 from tokenization.hf_tokenizer import HFTokenizer
 
-from ncm_graphrag.ncm.config import build_generation_cfg, build_model_cfg, build_tokenizer_cfg
+from ncm_graphrag.ncm.task_registry import TASKS
 
 
-class MapStageGenerator:
-    def __init__(self, device: str | None = None):
+class NCMTaskGenerator:
+    def __init__(self, task: str = "mapstage", device: str | None = None):
+        spec = TASKS[task]
+        self.task = task
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        tok_cfg = build_tokenizer_cfg()
-        model_cfg = build_model_cfg()
-        gen_cfg = build_generation_cfg()
+        tok_cfg = spec.build_tokenizer_cfg()
+        model_cfg = spec.build_model_cfg()
+        gen_cfg = spec.build_generation_cfg()
+        self.is_well_formed = spec.is_well_formed
 
         self.pre_tok = HFTokenizer(model_id="gpt2", pad_token="<|pad|>")
         self.prefix_len = int(model_cfg.prefix_len)
@@ -94,7 +98,9 @@ class MapStageGenerator:
 
     @torch.no_grad()
     def generate(self, prefix_text: str) -> str:
-        """One conditional map-stage generation: "report + query" text in, JSON text out.
+        """One conditional generation for this task: bounded prefix text in, bounded
+        task-shaped text out (JSON for mapstage, graphrag's delimiter-tuple grammar
+        for extraction).
 
         Deterministic (temperature=1.0, top_k=1 at the level-code sampling stage in
         `net.generate()`, plus the greedy `_pick_tokens` penalty decode at the final
@@ -105,28 +111,40 @@ class MapStageGenerator:
 
     @torch.no_grad()
     def generate_best_of_n(self, prefix_text: str, n: int = 8, sample_temp: float = 0.9, sample_top_k: int = 16) -> str:
-        """Sample `n` candidates in one batched forward pass and return the first that
-        parses as JSON matching graphrag's expected `{"points":[{"description","score"}]}`
-        shape, falling back to the plain deterministic `generate()` output if none do.
+        """Sample `n` candidates in one batched forward pass; among those passing this
+        task's well-formedness check (`task_registry.TaskSpec.is_well_formed`), return
+        the one with the highest total word-overlap similarity to the others (Minimum
+        Bayes Risk selection -- the candidate "closest to consensus" is a cheap proxy
+        for "most likely correct" when no reference is available). Falls back to the
+        plain deterministic `generate()` output if none pass well-formedness.
 
-        Addresses the known single-sample quality gap noted in docs/constraints.md
-        (greedy decode at this param count is rough -- ~57% of single-shot outputs are
-        valid JSON in held-out smoke testing) by using the model's own cheap parallel
-        forward pass as the reranking budget, per the task brief's observation that a
-        map-stage caller already pays for many short generations per query.
+        Both the sampling budget and the MBR step address a real, measured gap: on the
+        extraction task, well-formedness alone doesn't guarantee correct *content* --
+        entity names and descriptions can still be garbled in an otherwise
+        structurally-valid candidate (see docs/architecture.md). Picking the
+        highest-consensus candidate measurably improves on "first valid" without any
+        extra training. Using the model's own cheap parallel forward pass as the
+        reranking budget matches the task brief's observation that both tasks already
+        generate many short outputs per query/document.
         """
-        import json as _json
-
         candidates = self._decode_batch(prefix_text, n=n, temp=sample_temp, top_k=sample_top_k, top_p=1.0)
-        for cand in candidates:
-            try:
-                parsed = _json.loads(cand)
-                points = parsed.get("points")
-                if isinstance(points, list) and all("description" in p and "score" in p for p in points):
-                    return cand
-            except (ValueError, AttributeError):
-                continue
-        return self.generate(prefix_text)
+        valid = [c for c in candidates if self.is_well_formed(c)]
+        if not valid:
+            return self.generate(prefix_text)
+        if len(valid) == 1:
+            return valid[0]
+
+        def word_set(text: str) -> set[str]:
+            return set(text.lower().split())
+
+        def jaccard(a: set[str], b: set[str]) -> float:
+            return len(a & b) / max(len(a | b), 1)
+
+        word_sets = [word_set(c) for c in valid]
+        scores = [
+            sum(jaccard(ws, other) for j, other in enumerate(word_sets) if j != i) for i, ws in enumerate(word_sets)
+        ]
+        return valid[max(range(len(valid)), key=lambda i: scores[i])]
 
     @torch.no_grad()
     def _decode_batch(self, prefix_text: str, n: int, temp: float, top_k: int, top_p: float) -> list[str]:
