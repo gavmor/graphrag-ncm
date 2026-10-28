@@ -63,6 +63,6 @@ TASKS: dict[str, TaskSpec] = {
         tokenizer_steps=3500,
         tokenizer_n_examples=6000,
         generator_steps=8000,
-        generator_n_examples=8000,
+        generator_n_examples=40000,
     ),
 }
