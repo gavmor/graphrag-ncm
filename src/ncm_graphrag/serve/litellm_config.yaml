@@ -1,0 +1,12 @@
+model_list:
+  - model_name: ncm-mapstage
+    litellm_params:
+      model: ncm/ncm-mapstage
+      custom_llm_provider: ncm
+
+litellm_settings:
+  custom_provider_map:
+    - provider: ncm
+      custom_handler: custom_handler.ncm_mapstage_llm
+general_settings:
+  master_key: sk-ncm-local

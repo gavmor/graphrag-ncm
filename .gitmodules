@@ -1,0 +1,6 @@
+[submodule "third_party/graphrag"]
+	path = third_party/graphrag
+	url = https://github.com/microsoft/graphrag.git
+[submodule "third_party/ncm"]
+	path = third_party/ncm
+	url = https://github.com/HazyResearch/ncm.git

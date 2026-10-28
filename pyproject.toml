@@ -1,0 +1,60 @@
+[project]
+name = "ncm-graphrag"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Gavin Morgan", email = "morgan.gavin@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "huggingface-hub>=2.3.0",
+    "hydra-core>=1.3.8",
+    "litellm[proxy]>=1.83.0",
+    "numpy>=2.2.6",
+    "omegaconf>=2.3.1",
+    "pyyaml>=6.0.3",
+    "regex>=2026.9.29",
+    "rouge-score>=0.1.2",
+    "sacrebleu>=2.6.0",
+    "torch>=2.14.1",
+    "transformers>=4.51",
+]
+
+[project.scripts]
+ncm-graphrag = "ncm_graphrag:main"
+
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/cu130"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.3",
+    "ty>=0.0.93",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = ["third_party"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.environment]
+python-version = "3.10"
+extra-paths = ["third_party/ncm"]
+
+[tool.ty.src]
+# graphrag_integration/ imports graphrag_llm/graphrag, which only install into
+# third_party/graphrag's own uv workspace venv (Python >=3.11); it's executed via
+# `uv run --project third_party/graphrag python <script>`, not this project's venv.
+exclude = ["third_party", "src/ncm_graphrag/graphrag_integration"]
+
