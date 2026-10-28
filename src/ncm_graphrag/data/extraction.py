@@ -137,7 +137,7 @@ def parse_records(result: str) -> dict[str, list]:
 
     entities: list[dict] = []
     relationships: list[dict] = []
-    records = [r.strip() for r in result.split(RECORD_DELIMITER)]
+    records = [r.strip() for r in re.split(r'##|\)(?=\s*\(|\s*"entity")', result)]
     for raw in records:
         record = re.sub(r"^\(|\)$", "", raw.strip())
         if not record or COMPLETION_DELIMITER in record:
@@ -147,7 +147,7 @@ def parse_records(result: str) -> dict[str, list]:
         if len(attrs) >= 2 and ("entity" in attrs[0] or attrs[0] == '"entity"'):
             name = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[1]).upper()
             type_str = attrs[2].upper() if len(attrs) >= 3 else "ORGANIZATION"
-            if "ORG" in type_str or "OR" in type_str:
+            if "ORG" in type_str or "IZATION" in type_str or "OR" in type_str:
                 type_str = "ORGANIZATION"
             desc = attrs[3] if len(attrs) >= 4 else ""
             if len(name) > 2:
