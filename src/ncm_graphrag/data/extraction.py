@@ -144,13 +144,11 @@ def parse_records(result: str) -> dict[str, list]:
             continue
         attrs = re.split(r"<\|>|<\||\|>", record)
         attrs = [a.strip() for a in attrs if a.strip()]
-        if len(attrs) >= 2 and ("entity" in attrs[0] or attrs[0] == '"entity"'):
+        if len(attrs) >= 3 and ("entity" in attrs[0] or attrs[0] == '"entity"'):
             name = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[1]).upper()
-            type_str = attrs[2].upper() if len(attrs) >= 3 else "ORGANIZATION"
-            if "ORG" in type_str or "IZATION" in type_str or "OR" in type_str:
-                type_str = "ORGANIZATION"
+            type_str = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[2]).upper()
             desc = attrs[3] if len(attrs) >= 4 else ""
-            if len(name) > 2:
+            if len(name) > 2 and len(type_str) > 0:
                 entities.append({"name": name, "type": type_str, "description": desc})
         elif len(attrs) >= 4 and ("relationship" in attrs[0] or attrs[0] == '"relationship"'):
             source = re.sub(r'^[<|>\s"()]+|[<|>\s"()]+$', "", attrs[1]).upper()
