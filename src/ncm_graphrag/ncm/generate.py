@@ -16,6 +16,7 @@ verified by reading `NextConceptTransformer.generate()`'s branching rather than
 assumed. `_dec()` below is otherwise the unmodified upstream logic.
 """
 
+import os
 from typing import Any
 
 import torch
@@ -76,7 +77,9 @@ class NCMTaskGenerator:
         self.temp = float(gen_cfg.temperature)
         self.top_k = int(gen_cfg.top_k)
         self.top_p = float(gen_cfg.top_p)
-        self.cfg_scale = float(gen_cfg.cfg_scale)
+        # NCM_CFG_SCALE overrides the task's guidance scale so sweeps need no code edits. Only
+        # meaningful for a generator trained with NCM_COND_DROP > 0 (else the null branch is OOD).
+        self.cfg_scale = float(os.environ.get("NCM_CFG_SCALE", gen_cfg.cfg_scale))
         self.freq = float(gen_cfg.frequency_penalty)
         self.mu = float(gen_cfg.frequency_deficit)
         adj = str(gen_cfg.adjacency_penalty)
