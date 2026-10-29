@@ -85,9 +85,24 @@ def _title_tokens(title: str) -> set[str]:
     return {t for t in re.findall(r"[a-z0-9]+", title.lower()) if t not in _STOP and len(t) > 2}
 
 
+def _head_hit(query: str, paragraph: str) -> int:
+    """Query terms found in the paragraph's first 6 content words (capped at 9).
+
+    Measured on held-out HotpotQA: P(gold) rises monotonically 0.30 -> 0.33 -> 0.52 -> 0.62 ->
+    0.79 as this goes 0 -> 4+. Wikipedia paragraphs lead with their subject, so this is the
+    dominant lexical relevance cue (alone 65.65 AUC; dropping it from a 7-feature classifier
+    costs 6.9 AUC). Surfacing it as a number hands the model a cross-span comparison it did
+    not learn from raw tokens (surfacing the opening *text* did not help, run #69). A real
+    GraphRAG pipeline can compute it as cheaply as this does.
+    """
+    q = _title_tokens(query)
+    first = [t for t in re.findall(r"[a-z0-9]+", paragraph.lower()) if t not in _STOP and len(t) > 2][:6]
+    return min(len(q & set(first)), 9)
+
+
 def _fit_prefix(query: str, paragraph: str) -> str:
     tok = _pre_tok()
-    head = f"Query: {query}\nReport: "
+    head = f"Query: {query}\nMatch: {_head_hit(query, paragraph)}\nReport: "
     room = PREFIX_TOKEN_BUDGET - len(tok.encode(head))
     ids = tok.encode(paragraph)
     if len(ids) > room:
