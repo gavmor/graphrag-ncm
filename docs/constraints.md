@@ -211,3 +211,56 @@ prefix attention, schedule (batch 64 x 24000 vs batch 128 x 12000), dropout 0.05
 encoder trainability, hierarchy depth, decode penalties. The honest remaining options are
 a ~120M-parameter model (the background doc's own regime, far outside a single-run budget
 here) or constrained decoding to source spans.
+
+## 8. Real map-stage scoring (Lead 1): what was measured
+
+The synthetic `mapstage` task proves NCM can emit GraphRAG's bounded `{"points":[...]}` JSON,
+but its relevance rule is a closed template. Two real-data variants were built to test whether
+NCM can *judge* relevance. Corpora are fetched into a sibling worktree; set `NCM_CORPORA_ROOT`.
+
+**19. Most staged corpora cannot supervise a score.** `microsoft_graphrag/*.csv` (Kevin Scott,
+MSFT) holds questions only, with no answers or relevance labels; `squality` is a metadata card
+with no stories. Usable supervision is QMSum (query + transcript + reference summary, so the
+relevance label must be *derived*) and HotpotQA `distractor` (10 paragraphs per question, two
+human-annotated supporting facts, ~90k train questions).
+
+**20. Every label construction leaked something, and each leak inflated an early number.**
+Found by control baselines, not by inspection:
+
+| leak | symptom | fix | control after |
+|---|---|---|---|
+| prefix window cut the tail while the query came *after* the report (74% of QMSum lost its query) | memorisation, in-sample AUC 89 vs held-out 58 | query first, report clipped to budget | n/a |
+| QMSum short trailing chunk covered less of the summary purely by being short | length-only AUC 66.4 | drop tail; then restrict to a ±15% length band (density ranking overcorrected to 38.6) | 49.07 |
+| HotpotQA gold paragraphs are shorter than distractors | length-only AUC 41.6 | draw distractors from a ±35% band | 44.96 (residual) |
+
+Always report the length-only control, lexical baselines, and in-sample vs held-out AUC beside
+the NCM number.
+
+**21. QMSum is data-starved (3,620 usable pairs); HotpotQA is not.** On QMSum the NCM memorises
+(level_acc 0.999) and scores 53.5 vs a one-line query-term-overlap baseline of 68.6. On HotpotQA
+(60k pairs) there is no memorisation gap, but the raw-text NCM scores 61.3 against BM25 59.1 and
+a 7-feature logistic regression at 70.5.
+
+**22. Capacity does not help (again).** 0.84M → 10.77M parameters: 61.34 → 58.13, with in-sample
+64.4 vs held-out 57.9. The "no memorisation gap, so it must be underfitting" inference was wrong.
+
+**23. What the NCM can and cannot do with lexical structure (HotpotQA, held-out AUC):**
+
+| model | AUC |
+|---|---|
+| NCM, raw text | 61.34 |
+| NCM, report opening surfaced as text | 60.73 (no gain: not a visibility problem) |
+| rule `Match` = query terms in the report's first 6 content words, no model | 65.01 |
+| NCM given `Match: n` | 65.54 (+0.5 over the rule it was handed) |
+| NCM given 5 quantised features (`head/ov/cnt/bi/len`) | **72.64** |
+| logistic regression, same 5 quantised features | 66.68 |
+| lookup table over the exact feature tuple | **75.15** |
+
+Read honestly: given one feature the NCM is a pass-through; given several it beats a linear
+classifier by ~6 AUC (it learns feature *interactions*) but does **not** beat a non-parametric
+lookup on the same inputs. NCM has not been shown to learn relevance judgement from text here;
+what it contributes is valid bounded JSON at ~12 ms/call and ~17k tok/s.
+
+**24. Not yet wired into serving.** `map_stage_real` / `map_stage_hotpot` are benchmarked tasks;
+the litellm `HybridCompletion` path still serves the synthetic `mapstage` model. A serving
+prefix builder would have to compute the same `Features:` line from the query and report.

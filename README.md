@@ -109,6 +109,13 @@ found and fixed along the way — targets upper-cased entity names, forcing a BP
 transform while copying — worth **1.56 → 4.56 F1**. Ceiling, capture, and every rejected
 in-budget lever are recorded in `docs/constraints.md` §7 so they are not re-run.
 
+**Real map-stage scoring was also measured** (HotpotQA human-annotated relevance, held-out
+score AUC). The raw-text NCM scores 61.3, barely above BM25 (59.1); handing it five cheap lexical
+features raises that to 72.6, above a linear classifier on the same features (66.7) but below a
+lookup table over them (75.2). So NCM emits valid bounded map-stage JSON fast (~12 ms/call,
+~17k tok/s) but has not been shown to *judge* relevance from text. Label leaks found and fixed
+along the way, and the control baselines to report, are in `docs/constraints.md` §8.
+
 Natural next slices following the same recipe: relationship extraction (decoupled
 from entity extraction, per the background doc's own suggestion), community-report
 generation, and — for extraction to become production-useful — either the ~120M-parameter
