@@ -161,3 +161,18 @@ def grounding(pred: str, source: str) -> float:
         return 0.0
     src = set(_content(source))
     return sum(1 for w in p if w in src) / len(p)
+
+
+def entnum_grounding(pred: str, source: str) -> tuple[int, int]:
+    """(supported, total) over the output's numbers and capitalised non-initial words.
+
+    The fast in-loop faithfulness proxy: an invented name or figure almost always fails claim-level
+    verification, while generic words do not matter. Case-insensitive substring match against the
+    source (so `Obama's` matches `Obama`).
+    """
+    src = source.lower()
+    toks = re.findall(r"\d[\d,.]*\d|\d", pred)
+    toks += re.findall(r"(?<![.!?] )(?<!^)\b[A-Z][A-Za-z'\-]{2,}\b", pred)
+    toks = [t.strip(".,'-").removesuffix("'s").lower() for t in toks]
+    toks = [t for t in toks if t]
+    return sum(1 for t in toks if t in src), len(toks)

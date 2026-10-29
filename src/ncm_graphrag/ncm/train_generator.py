@@ -39,7 +39,22 @@ from ncm_graphrag.ncm.task_registry import TASKS, TaskSpec
 # same time. Defaults reproduce the shipped recipe exactly.
 BATCH_SIZE = int(os.environ.get("NCM_BATCH_SIZE", "128"))
 LR = float(os.environ.get("NCM_LR", "3e-4"))
+COND_DROP = float(os.environ.get("NCM_COND_DROP", "0"))
+TRAIN_PAD_MASK = os.environ.get("NCM_TRAIN_PAD_MASK", "0") == "1" or COND_DROP > 0.0
 SEED = int(os.environ.get("NCM_SEED", "1"))
+
+
+def apply_cond_drop(prefix: torch.Tensor, p: float, pad_id: int, eos_id: int) -> torch.Tensor:
+    """Per-item condition dropout for classifier-free guidance.
+
+    With probability `p` per row, replace the whole prefix with the exact null prefix that
+    NextConceptTransformer.generate() builds for CFG: [EOS, PAD, PAD, ...]. Targets and the loss
+    are untouched, so gradient scale does not depend on how many rows drop. `p=1.0` drops every row.
+    """
+    drop = torch.rand(prefix.shape[0], 1, device=prefix.device) < p
+    null_row = torch.full_like(prefix[:1], pad_id)
+    null_row[:, 0] = eos_id
+    return torch.where(drop, null_row.expand_as(prefix), prefix)
 
 
 def _build_dataset(task: TaskSpec, prefix_len: int, context_length: int, pre_tok) -> tuple[torch.Tensor, torch.Tensor]:
@@ -73,6 +88,7 @@ def main() -> None:
     tok_cfg = task.build_tokenizer_cfg()
     model_cfg = task.build_model_cfg()
     pre_tok = HFTokenizer(model_id="gpt2", pad_token="<|pad|>")
+    pad_id, eos_id = pre_tok.pad_token_id, pre_tok.eos_token_id
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     vqvae = VQVAE(**tok_cfg.vqvae).to(device)
@@ -95,6 +111,8 @@ def main() -> None:
         sel = torch.randint(0, n, (BATCH_SIZE,))
         prefix_batch = prefix_data[sel].to(device)
         target_batch = target_data[sel].to(device)
+        if COND_DROP > 0.0:
+            prefix_batch = apply_cond_drop(prefix_batch, COND_DROP, pad_id, eos_id)
 
         with torch.no_grad():
             idx = vqvae.encode(target_batch)  # (B, L) codebook indices across all levels
@@ -115,7 +133,11 @@ def main() -> None:
         x_target = torch.cat([l0_embed, rest_embed], dim=1)
         x = torch.cat([z_prefix, x_target], dim=1)
 
-        logits = net(x)  # (B, L, max_vocab)
+        # Mask pad keys exactly as generate() does (-inf where the prefix token == pad). Off by
+        # default so existing recipes stay reproducible; forced on with condition dropout, because
+        # an unmasked null row would show 287 pad tokens at train time but one EOS at decode time.
+        pad_mask = (prefix_batch[:, : model_cfg.prefix_len] == pad_id) if TRAIN_PAD_MASK else None
+        logits = net(x, prefix_pad_mask=pad_mask)  # (B, L, max_vocab)
         loss = F.cross_entropy(logits.reshape(-1, logits.shape[-1]), idx.reshape(-1))
 
         opt.zero_grad(set_to_none=True)

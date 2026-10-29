@@ -15,7 +15,7 @@ import torch
 from ncm_graphrag.data.extraction import parse_records
 from ncm_graphrag.data.map_stage_real import predicted_score
 from ncm_graphrag.data.relation_tacred import micro_f1, predicted_label
-from ncm_graphrag.data.report_multinews import grounding, rouge1_f
+from ncm_graphrag.data.report_multinews import entnum_grounding, grounding, rouge1_f
 from ncm_graphrag.ncm.generate import NCMTaskGenerator
 from ncm_graphrag.ncm.task_registry import TASKS
 
@@ -160,6 +160,11 @@ def _draft_benchmark(gen, examples, t0) -> None:
     n = max(len(examples), 1)
     print(f"METRIC draft_rouge1={100.0 * sum(r1) / n:.2f}")
     print(f"METRIC draft_grounding={100.0 * sum(gr) / n:.2f}")
+    en = [entnum_grounding(o, e.prefix_text) for o, e in zip(outs, examples, strict=False)]
+    en_ok, en_tot = sum(a for a, _ in en), sum(b for _, b in en)
+    print(f"METRIC draft_entnum_grounding={100.0 * en_ok / max(en_tot, 1):.2f}")
+    print(f"METRIC draft_entnum_count={en_tot / n:.2f}")
+    print(f"METRIC draft_words={sum(len(o.split()) for o in outs) / n:.2f}")
     print(f"METRIC lead1_rouge1={100.0 * sum(lr1) / n:.2f}")
     print(f"METRIC throughput_tok_per_sec={(gen.prefix_len + gen.net.L) * n / elapsed if elapsed > 0 else 0.0:.2f}")
     print(f"METRIC latency_ms={elapsed / n * 1000.0:.2f}")
