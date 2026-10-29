@@ -374,7 +374,6 @@ def build_relation_tacred_model_cfg() -> DictConfig:
     cfg = build_model_cfg()
     cfg.prefix_len = RELATION_TACRED_PREFIX_LEN
     cfg.vocab_size = [48] * len(RELATION_TACRED_LEVELS)
-    cfg.dropout = 0.3
     cfg.save_path = str(RELATION_TACRED_ARTIFACT_DIR / "generator.pt")
     return cfg
 
