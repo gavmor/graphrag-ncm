@@ -1,15 +1,22 @@
 """Benchmark script for NCM GraphRAG extraction workload.
 
-Runs a fixed set of synthetic extraction inputs through NCMTaskGenerator,
-measuring Entity F1, exact match rate, throughput, and validity rate on GPU.
+Runs a task's fixed evaluation set through NCMTaskGenerator and reports Entity F1, exact
+match rate, throughput, and validity rate. The task is chosen by the ``NCM_TASK`` env var
+(default ``extraction``); each task supplies its own deterministic benchmark examples via
+``TaskSpec.benchmark_examples`` so held-out tasks (``real_extraction``) never score
+in-sample data.
 """
 
+import os
 import time
 
 import torch
 
-from ncm_graphrag.data.extraction import generate_examples, parse_records
+from ncm_graphrag.data.extraction import parse_records
 from ncm_graphrag.ncm.generate import NCMTaskGenerator
+from ncm_graphrag.ncm.task_registry import TASKS
+
+TASK = os.environ.get("NCM_TASK", "extraction")
 
 
 def run_benchmark():
@@ -17,9 +24,10 @@ def run_benchmark():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
 
-    gen = NCMTaskGenerator(task="extraction")
-    # 50 fixed examples for deterministic evaluation
-    examples = generate_examples(50, seed=42)
+    spec = TASKS[TASK]
+    gen = NCMTaskGenerator(task=TASK)
+    assert spec.benchmark_examples is not None, f"task {TASK!r} has no benchmark examples"
+    examples = spec.benchmark_examples()
 
     # Warmup
     for e in examples[:5]:

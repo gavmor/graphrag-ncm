@@ -14,7 +14,7 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-from ncm_graphrag.data import extraction, map_stage
+from ncm_graphrag.data import extraction, map_stage, real_extraction
 from ncm_graphrag.ncm import config
 
 
@@ -29,6 +29,9 @@ class TaskSpec:
     tokenizer_n_examples: int
     generator_steps: int
     generator_n_examples: int
+    # Examples the benchmark scores. Defaults to the task's own generator; held-out tasks
+    # override this so the benchmark never scores in-sample data.
+    benchmark_examples: Callable[[], list[Any]] | None = None
 
 
 def _mapstage_is_well_formed(text: str) -> bool:
@@ -53,6 +56,7 @@ TASKS: dict[str, TaskSpec] = {
         tokenizer_n_examples=6000,
         generator_steps=4000,
         generator_n_examples=8000,
+        benchmark_examples=lambda: map_stage.generate_examples(50, 42),
     ),
     "extraction": TaskSpec(
         generate_examples=extraction.generate_examples,
@@ -64,5 +68,19 @@ TASKS: dict[str, TaskSpec] = {
         tokenizer_n_examples=6000,
         generator_steps=12000,
         generator_n_examples=200000,
+        benchmark_examples=lambda: extraction.generate_examples(50, 42),
+    ),
+    "real_extraction": TaskSpec(
+        generate_examples=real_extraction.generate_examples,
+        build_tokenizer_cfg=config.build_real_extraction_tokenizer_cfg,
+        build_model_cfg=config.build_real_extraction_model_cfg,
+        build_generation_cfg=config.build_real_extraction_generation_cfg,
+        is_well_formed=extraction.is_well_formed,
+        tokenizer_steps=3500,
+        tokenizer_n_examples=6000,
+        generator_steps=12000,
+        generator_n_examples=8000,
+        # Re-DocRED dev documents are never trained on.
+        benchmark_examples=lambda: real_extraction.eval_examples("dev", 300, 42),
     ),
 }

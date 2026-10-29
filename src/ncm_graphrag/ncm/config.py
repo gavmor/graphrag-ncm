@@ -227,3 +227,29 @@ def build_extraction_generation_cfg() -> DictConfig:
             "cut_at_eos": True,
         }
     )
+
+
+# --- Real-data entity extraction (Re-DocRED) ---
+#
+# Same architecture and decode settings as `extraction`; only the *data* changes (real
+# Wikipedia sentences, real entity names, real PER/LOC/ORG/MISC/TIME/NUM type set, 1-2
+# entities per sentence). Keeping the model identical isolates the effect of the corpus.
+# Separate artifact directory so both tasks can be served side by side.
+
+REAL_EXTRACTION_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "real_extraction"
+
+
+def build_real_extraction_tokenizer_cfg() -> DictConfig:
+    cfg = build_extraction_tokenizer_cfg()
+    cfg.save_path = str(REAL_EXTRACTION_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_real_extraction_model_cfg() -> DictConfig:
+    cfg = build_extraction_model_cfg()
+    cfg.save_path = str(REAL_EXTRACTION_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_real_extraction_generation_cfg() -> DictConfig:
+    return build_extraction_generation_cfg()
