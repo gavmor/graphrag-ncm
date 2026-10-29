@@ -132,6 +132,12 @@ against 17.4/1.4/12.6 for the lead sentence and 28.3/7.4/18.8 for zero-shot Clau
 rewards house style), and it still garbles proper nouns (`Guingamp` -> `Guernan Guineamp`), the same
 weakness that limits extraction here. See `docs/constraints.md` §10.
 
+**That ROUGE result overstated the summaries.** Judged blind at claim level, the same checkpoint's
+output on its *own* XSum articles has only 27% of claims supported (fluency 2.1/5), and on GraphRAG
+benchmark text (podcasts, earnings calls, Wikipedia) 3-8%: no better than a summary of the wrong
+chunk (0-2%), against 88-94% for Claude. So the released XSum NCM does not transfer zero-shot, and the
+"NCM suits bounded summarisation" hypothesis is untested rather than supported. `docs/constraints.md` §11.
+
 Natural next slices following the same recipe: relationship extraction (decoupled
 from entity extraction, per the background doc's own suggestion), community-report
 generation, and — for extraction to become production-useful — either the ~120M-parameter

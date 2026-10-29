@@ -383,3 +383,55 @@ output must reproduce input strings exactly. In the brief's table that favours b
 summarisation-style stages (leaf community-report drafting, short map-stage justifications) over
 extraction, where entity names must be exact. That is a hypothesis to test with a GraphRAG-shaped
 training set, not a result: the XSum model was trained on news, and no community-report model exists.
+
+## 11. Zero-shot probe: the released XSum NCM on GraphRAG-shaped text (and a correction to §10)
+
+Question: before training anything, does the released 88M XSum checkpoint produce usable short
+summaries of the kind of text GraphRAG processes? No reference summaries exist for these inputs, so
+scoring is reference-free and blind.
+
+**33. Setup.** 180 inputs, 60 each from: Kevin Scott podcast transcripts and MSFT earnings-call
+transcripts (the Microsoft GraphRAG benchmark corpora) and HotpotQA Wikipedia paragraphs (gold + 2
+distractors, three paragraphs, shuffled). Each trimmed to <=480 GPT-2 tokens (the checkpoint's prefix
+is 512; 300+ required). Input cleaning applied for the NCM: filename headers, curly quotes and
+`SPEAKER:` labels removed (the raw text additionally produced `U+FFFD` byte fragments, 0.25 per
+podcast summary; cleaning removed those but not the invented content). Systems, each judged blind and
+in shuffled order by `claude-haiku-5-5` at claim level (supported / unsupported / contradicted +
+fluency 1-5): the NCM; Claude (one-sentence summary); lead-1 (first sentence, verbatim); and a
+**mismatch control** (an NCM summary of a different chunk of the same source).
+
+**34. Result (share of claims supported; fully-faithful summaries in brackets; n=59-60 each).**
+
+| source | NCM | Claude | lead-1 (anchor) | mismatch (anchor) | NCM fluency |
+|---|---|---|---|---|---|
+| podcast | **8%** (0%) | 92% (70%) | 99% (87%) | 2% (0%) | 1.2 |
+| earnings call | **3%** (2%) | 88% (37%) | 100% (100%) | 2% (0%) | 1.2 |
+| Wikipedia | **7%** (0%) | 94% (67%) | 100% (100%) | 0% (0%) | 1.3 |
+
+The anchors validate the judge: verbatim lead-1 scores 99-100% and a summary of the wrong chunk 0-2%.
+**The NCM is statistically indistinguishable from the wrong-chunk control** on claim support, i.e. its
+output carries almost no information specific to the source it was given. It also invents entities
+(`Alphabet`, `Tech Tent`, `Techcom.com`) and, on the Hartlepool shopping-centre paragraph, "Australia's
+largest Shopping Centre". Deterministic checks agree: 11-61% of numbers and 19-49% of capitalised
+words in NCM summaries appear in the source, vs 90-100% for Claude and 100% for lead-1.
+
+**35. Correction to §10.** The same judge on the NCM's *in-domain* XSum summaries (60 of the earlier
+150 articles) gives **27% of claims supported, 0% fully faithful, fluency 2.1/5**; XSum's own human
+reference summaries give 56% supported (22% fully faithful, fluency 5.0), because XSum references
+contain content absent from the article. §10 reported ROUGE-1/2/L of 34.1/11.8/26.3 and described the
+output as "fluent" summaries. ROUGE rewards XSum house style and does not measure support; on
+faithfulness the released checkpoint is weak **even on its own training domain**. The ROUGE lead over
+Claude and lead-1 stands as a ROUGE result only. Faithfulness is roughly 4-9x worse on GraphRAG-shaped
+text than on XSum (27% -> 3-8%), so domain shift costs a large further drop.
+
+**36. Limits of this probe.** The judge is Claude, so Claude's own rows may be flattered (the NCM
+conclusion does not depend on them: it rests on the NCM rows and the two anchors). n=60 per cell. The
+Wikipedia inputs are three unrelated paragraphs, less coherent than a real community report. One
+checkpoint, trained only on XSum news, so this says nothing about a model *trained* on GraphRAG-shaped
+text. Quote it only as "the released XSum model does not transfer zero-shot".
+
+**37. Consequence.** The §10/§32 hypothesis (NCM suits bounded abstractive summarisation) is **not
+supported by the zero-shot evidence** and §10's fluency framing is withdrawn. What remains open, and
+untested: a model *trained* on GraphRAG-shaped summaries, and whether any NCM size reaches useful
+faithfulness. For GraphRAG the measured picture is now: valid bounded structure and ~7-100 ms latency
+(§8, §9, §10) but no demonstrated advantage in content quality on any task tried.
