@@ -115,8 +115,10 @@ def _score_benchmark(gen, examples, t0, spec) -> None:
         del valid
 
     valid_count = sum(1 for p in preds if p is not None)
-    pairs_pos = [p for p, e in zip(preds, examples, strict=False) if p is not None and e.grade >= 2]
-    pairs_neg = [p for p, e in zip(preds, examples, strict=False) if p is not None and e.grade <= 1]
+    # "Relevant" = the task's directly-answering grade (3). Grades 0-2 are all non-answers, so
+    # the ranking question is exactly the map stage's: does a relevant report outscore the rest.
+    pairs_pos = [p for p, e in zip(preds, examples, strict=False) if p is not None and e.grade == 3]
+    pairs_neg = [p for p, e in zip(preds, examples, strict=False) if p is not None and e.grade < 3]
     auc = _auc(pairs_pos, pairs_neg)
     mae = sum(abs(p - e.score) for p, e in zip(preds, examples, strict=False) if p is not None) / max(valid_count, 1)
 

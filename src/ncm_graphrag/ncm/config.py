@@ -322,3 +322,25 @@ def build_map_stage_real_model_cfg() -> DictConfig:
 
 def build_map_stage_real_generation_cfg() -> DictConfig:
     return build_generation_cfg()
+
+
+# --- Real map-stage scoring on HotpotQA (human-annotated relevance) ---
+# Identical model/tokenizer settings to `map_stage_real`; only the corpus differs.
+
+MAP_STAGE_HOTPOT_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "map_stage_hotpot"
+
+
+def build_map_stage_hotpot_tokenizer_cfg() -> DictConfig:
+    cfg = build_map_stage_real_tokenizer_cfg()
+    cfg.save_path = str(MAP_STAGE_HOTPOT_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_map_stage_hotpot_model_cfg() -> DictConfig:
+    cfg = build_map_stage_real_model_cfg()
+    cfg.save_path = str(MAP_STAGE_HOTPOT_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_map_stage_hotpot_generation_cfg() -> DictConfig:
+    return build_map_stage_real_generation_cfg()

@@ -14,7 +14,14 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-from ncm_graphrag.data import extraction, fewnerd_extraction, map_stage, map_stage_real, real_extraction
+from ncm_graphrag.data import (
+    extraction,
+    fewnerd_extraction,
+    map_stage,
+    map_stage_hotpot,
+    map_stage_real,
+    real_extraction,
+)
 from ncm_graphrag.ncm import config
 
 
@@ -72,6 +79,19 @@ TASKS: dict[str, TaskSpec] = {
         generator_steps=4000,
         generator_n_examples=8000,
         benchmark_examples=map_stage_real.benchmark_examples,
+        metric="score_auc",
+    ),
+    "map_stage_hotpot": TaskSpec(
+        generate_examples=map_stage_hotpot.generate_examples,
+        build_tokenizer_cfg=config.build_map_stage_hotpot_tokenizer_cfg,
+        build_model_cfg=config.build_map_stage_hotpot_model_cfg,
+        build_generation_cfg=config.build_map_stage_hotpot_generation_cfg,
+        is_well_formed=map_stage_hotpot.is_well_formed,
+        tokenizer_steps=3000,
+        tokenizer_n_examples=6000,
+        generator_steps=8000,
+        generator_n_examples=60000,
+        benchmark_examples=map_stage_hotpot.benchmark_examples,
         metric="score_auc",
     ),
     "extraction": TaskSpec(
