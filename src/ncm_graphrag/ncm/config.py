@@ -189,7 +189,7 @@ def build_extraction_model_cfg() -> DictConfig:
             "use_level_encoding": True,
             "prefix_len": EXTRACTION_PREFIX_LEN,
             "raw_token_prefix": True,
-            "contextual_prefix": True,
+            "contextual_prefix": False,
             "prefix_pad_token_id": PAD_TOKEN_ID,
             "use_rope": True,
             "rope_base": 10000,
