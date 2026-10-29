@@ -14,7 +14,7 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-from ncm_graphrag.data import extraction, fewnerd_extraction, map_stage, real_extraction
+from ncm_graphrag.data import extraction, fewnerd_extraction, map_stage, map_stage_real, real_extraction
 from ncm_graphrag.ncm import config
 
 
@@ -32,6 +32,9 @@ class TaskSpec:
     # Examples the benchmark scores. Defaults to the task's own generator; held-out tasks
     # override this so the benchmark never scores in-sample data.
     benchmark_examples: Callable[[], list[Any]] | None = None
+    # Which metric the benchmark reports for this task: "entity_f1" for extraction-style
+    # tasks, "score_auc" for bounded-ordinal-score tasks (the map stage).
+    metric: str = "entity_f1"
 
 
 def _mapstage_is_well_formed(text: str) -> bool:
@@ -57,6 +60,19 @@ TASKS: dict[str, TaskSpec] = {
         generator_steps=4000,
         generator_n_examples=8000,
         benchmark_examples=lambda: map_stage.generate_examples(50, 42),
+    ),
+    "map_stage_real": TaskSpec(
+        generate_examples=map_stage_real.generate_examples,
+        build_tokenizer_cfg=config.build_map_stage_real_tokenizer_cfg,
+        build_model_cfg=config.build_map_stage_real_model_cfg,
+        build_generation_cfg=config.build_map_stage_real_generation_cfg,
+        is_well_formed=map_stage_real.is_well_formed,
+        tokenizer_steps=3000,
+        tokenizer_n_examples=6000,
+        generator_steps=4000,
+        generator_n_examples=8000,
+        benchmark_examples=map_stage_real.benchmark_examples,
+        metric="score_auc",
     ),
     "extraction": TaskSpec(
         generate_examples=extraction.generate_examples,

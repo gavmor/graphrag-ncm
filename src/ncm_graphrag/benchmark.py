@@ -13,6 +13,7 @@ import time
 import torch
 
 from ncm_graphrag.data.extraction import parse_records
+from ncm_graphrag.data.map_stage_real import predicted_score
 from ncm_graphrag.ncm.generate import NCMTaskGenerator
 from ncm_graphrag.ncm.task_registry import TASKS
 
@@ -41,6 +42,9 @@ def run_benchmark():
     valid_count = 0
     total_f1 = 0.0
     exact_matches = 0
+
+    if spec.metric == "score_auc":
+        return _score_benchmark(gen, examples, t0, spec)
 
     for e in examples:
         out = gen.generate(e.prefix_text)
@@ -83,6 +87,51 @@ def run_benchmark():
     print(f"METRIC throughput_tok_per_sec={throughput:.2f}")
     print(f"METRIC latency_ms={latency_ms:.2f}")
     print(f"METRIC valid_rate={valid_rate:.4f}")
+
+
+def _auc(pos: list[float], neg: list[float]) -> float:
+    """Probability a relevant example scores above an irrelevant one (ties count 1/2)."""
+    if not pos or not neg:
+        return 0.0
+    wins = 0.0
+    for p in pos:
+        for n in neg:
+            wins += 1.0 if p > n else (0.5 if p == n else 0.0)
+    return wins / (len(pos) * len(neg))
+
+
+def _score_benchmark(gen, examples, t0, spec) -> None:
+    """Report ranking quality for bounded-ordinal-score tasks (the GraphRAG map stage).
+
+    The map stage's job is to rank a report's relevance to a query, so the primary metric is
+    the probability that a graded-relevant chunk is scored above an irrelevant one. Graded
+    scores are also reported as mean absolute error against the task's canonical scores.
+    """
+    preds: list[float | None] = []
+    for e in examples:
+        out = gen.generate(e.prefix_text)
+        valid = gen.is_well_formed(out)
+        preds.append(predicted_score(out) if valid else None)
+        del valid
+
+    valid_count = sum(1 for p in preds if p is not None)
+    pairs_pos = [p for p, e in zip(preds, examples, strict=False) if p is not None and e.grade >= 2]
+    pairs_neg = [p for p, e in zip(preds, examples, strict=False) if p is not None and e.grade <= 1]
+    auc = _auc(pairs_pos, pairs_neg)
+    mae = sum(abs(p - e.score) for p, e in zip(preds, examples, strict=False) if p is not None) / max(valid_count, 1)
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    elapsed = time.perf_counter() - t0
+    total_tokens = (gen.prefix_len + gen.net.L) * len(examples)
+    throughput = total_tokens / elapsed if elapsed > 0 else 0.0
+    latency_ms = (elapsed / len(examples)) * 1000.0 if examples else 0.0
+
+    print(f"METRIC score_auc={auc * 100.0:.2f}")
+    print(f"METRIC score_mae={mae:.2f}")
+    print(f"METRIC throughput_tok_per_sec={throughput:.2f}")
+    print(f"METRIC latency_ms={latency_ms:.2f}")
+    print(f"METRIC valid_rate={valid_count / max(len(examples), 1):.4f}")
 
 
 if __name__ == "__main__":

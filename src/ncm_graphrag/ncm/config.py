@@ -295,3 +295,30 @@ def build_fewnerd_extraction_model_cfg() -> DictConfig:
 
 def build_fewnerd_extraction_generation_cfg() -> DictConfig:
     return build_extraction_generation_cfg()
+
+
+# --- Real map-stage scoring (Lead 1) ---
+# Same short-RON JSON target as the synthetic `mapstage` task, so the tokenizer/generator
+# settings proven there are reused as-is; only the *prefix* changes, because a real map-stage
+# call carries a ~90-word community-report chunk plus the user query (~135 gpt2 tokens) rather
+# than a 20-token template.
+
+MAP_STAGE_REAL_PREFIX_LEN = 160
+MAP_STAGE_REAL_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "map_stage_real"
+
+
+def build_map_stage_real_tokenizer_cfg() -> DictConfig:
+    cfg = build_tokenizer_cfg()
+    cfg.save_path = str(MAP_STAGE_REAL_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_map_stage_real_model_cfg() -> DictConfig:
+    cfg = build_model_cfg()
+    cfg.prefix_len = MAP_STAGE_REAL_PREFIX_LEN
+    cfg.save_path = str(MAP_STAGE_REAL_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_map_stage_real_generation_cfg() -> DictConfig:
+    return build_generation_cfg()
