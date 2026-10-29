@@ -353,7 +353,7 @@ def build_map_stage_hotpot_generation_cfg() -> DictConfig:
 # sub-tokens ("per", ":", "_"), and the frequency/adjacency penalty would corrupt it - the same
 # failure measured on the extraction grammar (docs/architecture.md).
 
-RELATION_TACRED_PREFIX_LEN = 128
+RELATION_TACRED_PREFIX_LEN = 160
 RELATION_TACRED_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "relation_tacred"
 
 
