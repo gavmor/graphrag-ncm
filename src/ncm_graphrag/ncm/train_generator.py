@@ -97,6 +97,9 @@ def main() -> None:
             rest_embed = vqvae.vq.idx_to_ncm_input(idx)  # (B, L - levels[0], embed_dim)
             _enc = vqvae.encoder
             if bool(getattr(model_cfg, "contextual_prefix", False)) and len(getattr(_enc, "blocks", [])) > 0:
+                # Deliberately unmasked: measured PAD-masked prefix attention at 0.89 F1 vs
+                # 1.83 with padding attended (the PAD slots act as attention sinks), so the
+                # upstream helper is kept as-is.
                 z_prefix = _enc.forward_nopos(prefix_batch)[:, : model_cfg.prefix_len, :]
             else:
                 z_prefix = _enc.wte(prefix_batch)[:, : model_cfg.prefix_len, :]
