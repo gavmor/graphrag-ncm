@@ -114,7 +114,9 @@ def _build(split: str, max_entities: int = 2) -> list[ExtractionExample]:
             entities: list[tuple[str, str]] = []
             for name, entity_type in mentions:
                 key = (name.upper(), entity_type)
-                if key in seen or not _is_safe_field(name):
+                # parse_records drops names shorter than 3 characters, so keep gold targets
+                # consistent with what the scorer can ever match.
+                if key in seen or not _is_safe_field(name) or len(name) < 3:
                     continue
                 seen.add(key)
                 entities.append((name, entity_type))

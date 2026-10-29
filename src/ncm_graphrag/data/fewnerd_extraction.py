@@ -109,7 +109,9 @@ def _build(split: str) -> tuple[ExtractionExample, ...]:
         for raw_name, entity_type in _spans(tokens, tags):
             name = _norm(raw_name)
             key = (name.upper(), entity_type)
-            if key in seen or not _is_safe_field(name):
+            # parse_records drops names shorter than 3 characters, so keep gold targets
+            # consistent with what the scorer can ever match.
+            if key in seen or not _is_safe_field(name) or len(name) < 3:
                 continue
             seen.add(key)
             entities.append((name, entity_type))
