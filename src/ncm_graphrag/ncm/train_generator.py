@@ -39,7 +39,7 @@ from ncm_graphrag.ncm.task_registry import TASKS, TaskSpec
 # same time. Defaults reproduce the shipped recipe exactly.
 BATCH_SIZE = int(os.environ.get("NCM_BATCH_SIZE", "128"))
 LR = float(os.environ.get("NCM_LR", "3e-4"))
-SEED = 1
+SEED = int(os.environ.get("NCM_SEED", "1"))
 
 
 def _build_dataset(task: TaskSpec, prefix_len: int, context_length: int, pre_tok) -> tuple[torch.Tensor, torch.Tensor]:
