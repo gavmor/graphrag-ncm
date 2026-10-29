@@ -339,3 +339,47 @@ dropout did not close that gap; they only moved the precision/recall operating p
   seed spread itself depends on the configuration (sd 0.5 at dropout 0.1, 3.9 at 0.3).
 - Training-schedule overrides (`NCM_STEPS` etc.) had been silently reverted by an earlier discard
   that reset the worktree; the training log's last step (7999 instead of 3999) exposed it.
+
+## 10. What the NCM is good at, measured at the paper's own scale (released XSum checkpoint)
+
+§7-§9 are 1-11M-parameter models trained from scratch for ~40 minutes; they cannot say how the
+architecture behaves at the scale the paper uses. This probe runs the **released** XSum checkpoint
+(88.0M generator + 60.6M VQ-VAE, 4096 codes/level, 9 levels, 512-token prefix) with no training here.
+
+**30. Setup.** 150 XSum test articles, seeded random sample (seed 11), filtered to >=200 GPT-2 tokens
+(median 415; the checkpoint is documented as unreliable on short input). Metrics: ROUGE-1/2/L
+(`rouge_score`, stemmed, F-measure) against the single reference summary. Baselines on the identical
+articles: lead-1 (first sentence) and `claude-haiku-5-5` asked for a one-sentence summary
+(`max_tokens=2000`, 150/150 valid). XSum test data fetched from the HF `refs/convert/parquet` branch.
+One-off probe, not a benchmark entrypoint; sample sizes are small.
+
+| system | ROUGE-1 | ROUGE-2 | ROUGE-L | latency / summary |
+|---|---|---|---|---|
+| **NCM released, 88M** | **34.1** | **11.8** | **26.3** | **102 ms** (in-process, batch 1) |
+| Claude haiku-5-5, zero-shot | 28.3 | 7.4 | 18.8 | 1,108 ms (network, 8-way concurrent) |
+| lead-1 | 17.4 | 1.4 | 12.6 | - |
+
+**31. How to read it (do not overstate).**
+- This is the first measurement where the NCM beats a baseline that is not trivial: ~2x lead-1 on ROUGE-1
+  and ~8x on ROUGE-2, producing fluent one-sentence abstractive summaries in ~100 ms.
+- It is **not** evidence the NCM out-summarises Claude. The NCM was trained on XSum and Claude is
+  zero-shot, and ROUGE rewards matching XSum's house style; a human or faithfulness judgement could
+  rank them differently. The latency gap is also not like-for-like (88M in-process vs a network call).
+- **The weakness from §7 persists at 88M.** Sample outputs garble proper nouns: `Guinea` -> `Guegal`,
+  `Guingamp` -> `Guernan Guineamp`. Of 28 capitalised words in NCM summaries absent from the article,
+  inspection found ~5 clear misspelled copies (`Guernan`, `Guineamp`, `Prideice`, `Cranning`,
+  `Fernandez`), ~8 plausible-looking person names with no support in the text (`Joel`, `Billy`,
+  `Malcolm`, `Katherine`, ...), 4 harmless possessives, and the remainder generic words. This was an
+  inspection of a small sample; **no rate is claimed.**
+- Two attempts at an automatic garbling metric failed and were discarded rather than reported:
+  "capitalised words found in the article" gives the gold references only 65% (XSum removes the
+  article's first sentence, so references legitimately contain names the body never mentions), and a
+  near-spelling test (difflib ratio >= 0.6 against any article word) gives the references 60.8%
+  although they contain no garbled copies, i.e. it cannot discriminate.
+
+**32. Consequence for GraphRAG.** Evidence now points the same way from both scales: the NCM is a
+reasonable fast generator of fluent, abstractive, bounded-length text, and a poor fit wherever the
+output must reproduce input strings exactly. In the brief's table that favours bounded
+summarisation-style stages (leaf community-report drafting, short map-stage justifications) over
+extraction, where entity names must be exact. That is a hypothesis to test with a GraphRAG-shaped
+training set, not a result: the XSum model was trained on news, and no community-report model exists.

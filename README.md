@@ -125,6 +125,13 @@ well below a bag-of-words softmax regression (44.7) and Claude haiku-5-5 (61.8, 
 What did and did not move it, and the traps hit along the way (sorted val file, leaky train
 holdout, single-seed deltas that reversed on replication), are in `docs/constraints.md` §9.
 
+**At the paper's own scale the picture is more favourable, with the same caveat.** The *released*
+88M XSum checkpoint (no training here) gets ROUGE-1/2/L of 34.1/11.8/26.3 on 150 XSum test articles,
+against 17.4/1.4/12.6 for the lead sentence and 28.3/7.4/18.8 for zero-shot Claude haiku-5-5, at
+~102 ms per summary in-process. That is not evidence it beats Claude (it was trained on XSum; ROUGE
+rewards house style), and it still garbles proper nouns (`Guingamp` -> `Guernan Guineamp`), the same
+weakness that limits extraction here. See `docs/constraints.md` §10.
+
 Natural next slices following the same recipe: relationship extraction (decoupled
 from entity extraction, per the background doc's own suggestion), community-report
 generation, and — for extraction to become production-useful — either the ~120M-parameter
