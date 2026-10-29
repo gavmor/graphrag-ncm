@@ -106,19 +106,46 @@ def _fits(ex: RelationExample) -> bool:
     return len(_pre_tok().encode(ex.prefix_text)) <= PREFIX_TOKEN_BUDGET
 
 
+def _na_train_fraction() -> float | None:
+    """Target share of `NA` in the training pool, or None for the natural mix (~81%).
+
+    Set via NCM_NA_FRACTION. Only the TRAINING pool is rebalanced; the benchmark always keeps
+    the natural validation mix, so precision still pays for every false positive on `NA`.
+    """
+    raw = os.environ.get("NCM_NA_FRACTION")
+    return float(raw) if raw else None
+
+
 def generate_examples(n: int, seed: int) -> list[RelationExample]:
-    """Deterministic sample of train examples that fit the prefix window (natural class mix)."""
+    """Deterministic sample of train examples that fit the prefix window.
+
+    Natural class mix unless NCM_NA_FRACTION rebalances it: then every non-NA example is kept and
+    `NA` is downsampled to that share of the pool (so `n` is an upper bound, not the size).
+    """
     rng = random.Random(seed)
     rows = _raw("train")
     rng.shuffle(rows)
-    out: list[RelationExample] = []
+    frac = _na_train_fraction()
+    if frac is None:
+        out: list[RelationExample] = []
+        for rec in rows:
+            ex = _example(rec)
+            if _fits(ex):
+                out.append(ex)
+                if len(out) >= n:
+                    break
+        return out
+    pos: list[RelationExample] = []
+    neg: list[RelationExample] = []
     for rec in rows:
         ex = _example(rec)
         if _fits(ex):
-            out.append(ex)
-            if len(out) >= n:
-                break
-    return out
+            (neg if ex.relation == NO_RELATION else pos).append(ex)
+    pos = pos[:n]
+    keep_na = int(len(pos) * frac / (1.0 - frac))
+    pool = pos + neg[:keep_na]
+    rng.shuffle(pool)
+    return pool[:n]
 
 
 def benchmark_examples() -> list[RelationExample]:
