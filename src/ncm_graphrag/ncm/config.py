@@ -239,14 +239,24 @@ def build_extraction_generation_cfg() -> DictConfig:
 REAL_EXTRACTION_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "real_extraction"
 
 
+# Real text needs a much bigger discrete bottleneck than the synthetic 40x20 grid did:
+# measured tokenizer-only ceiling on Re-DocRED dev was 90.2% token accuracy -> 5.83% entity
+# F1, i.e. the VQ tokenizer (not the generator) bounds real-data extraction.
+REAL_EXTRACTION_EMBED_DIM = 128
+REAL_EXTRACTION_CODEBOOK = 256
+
+
 def build_real_extraction_tokenizer_cfg() -> DictConfig:
     cfg = build_extraction_tokenizer_cfg()
+    cfg.vqvae.embed_dim = REAL_EXTRACTION_EMBED_DIM
+    cfg.vqvae.vqvae_vocab_size = [REAL_EXTRACTION_CODEBOOK] * len(EXTRACTION_LEVELS)
     cfg.save_path = str(REAL_EXTRACTION_ARTIFACT_DIR / "tokenizer.pt")
     return cfg
 
 
 def build_real_extraction_model_cfg() -> DictConfig:
     cfg = build_extraction_model_cfg()
+    cfg.vocab_size = [REAL_EXTRACTION_CODEBOOK] * len(EXTRACTION_LEVELS)
     cfg.save_path = str(REAL_EXTRACTION_ARTIFACT_DIR / "generator.pt")
     return cfg
 
