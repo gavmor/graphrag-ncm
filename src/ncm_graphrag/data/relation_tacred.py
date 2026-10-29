@@ -146,7 +146,7 @@ def _example(rec: dict) -> RelationExample:
     tail = " ".join(_clean(t) for t in rec["token"][rec["t"]["pos"][0] : rec["t"]["pos"][1]])
     return RelationExample(
         prefix_text=f"Head: {head}\nTail: {tail}\nBetween: {_between(rec)}\nText: {_marked_text(rec)}",
-        target_text=rec["relation"],
+        target_text=str(label_id(rec["relation"])),
         relation=rec["relation"],
     )
 
@@ -222,13 +222,33 @@ def benchmark_examples() -> list[RelationExample]:
     return out
 
 
+@functools.lru_cache(maxsize=1)
+def _label_ids() -> dict[str, int]:
+    return {label: i for i, label in enumerate(labels())}
+
+
+def label_id(label: str) -> int:
+    """Index of `label` in the sorted label list (`NA` sorts first, so it is 0).
+
+    The target is this number, not the label string: `org:country_of_headquarters` is ~10 gpt2
+    tokens, each another place the parallel decoder can err, while its id is a single token.
+    GraphRAG's own edge validation emits a canonical ID the same way.
+    """
+    return _label_ids()[label]
+
+
+@functools.lru_cache(maxsize=1)
+def _id_labels() -> dict[str, str]:
+    return {str(i): label for label, i in _label_ids().items()}
+
+
 def is_well_formed(text: str) -> bool:
-    return text.strip() in _label_set()
+    return text.strip() in _id_labels()
 
 
 def predicted_label(text: str) -> str | None:
-    t = text.strip()
-    return t if t in _label_set() else None
+    """Decode the generated id back to its relation label, or None if it is not a valid id."""
+    return _id_labels().get(text.strip())
 
 
 def micro_f1(gold: list[str], pred: list[str | None]) -> tuple[float, float, float]:

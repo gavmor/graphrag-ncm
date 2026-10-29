@@ -357,8 +357,15 @@ RELATION_TACRED_PREFIX_LEN = 160
 RELATION_TACRED_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "relation_tacred"
 
 
+RELATION_TACRED_LEVELS = [2, 4, 8]
+RELATION_TACRED_CONTEXT_LENGTH = 8  # target is a 1-2 token numeric label id + EOS
+
+
 def build_relation_tacred_tokenizer_cfg() -> DictConfig:
     cfg = build_tokenizer_cfg()
+    cfg.vqvae.context_length = RELATION_TACRED_CONTEXT_LENGTH
+    cfg.vqvae.vqvae_vocab_size = [48] * len(RELATION_TACRED_LEVELS)
+    cfg.vqvae.vector_quantizer_config.levels.manual_levels = RELATION_TACRED_LEVELS
     cfg.save_path = str(RELATION_TACRED_ARTIFACT_DIR / "tokenizer.pt")
     return cfg
 
@@ -366,6 +373,7 @@ def build_relation_tacred_tokenizer_cfg() -> DictConfig:
 def build_relation_tacred_model_cfg() -> DictConfig:
     cfg = build_model_cfg()
     cfg.prefix_len = RELATION_TACRED_PREFIX_LEN
+    cfg.vocab_size = [48] * len(RELATION_TACRED_LEVELS)
     cfg.save_path = str(RELATION_TACRED_ARTIFACT_DIR / "generator.pt")
     return cfg
 
