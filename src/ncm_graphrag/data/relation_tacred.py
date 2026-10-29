@@ -91,12 +91,37 @@ def _raw(split: str) -> list[dict]:
     return out
 
 
+def _marked_text(rec: dict) -> str:
+    """Sentence with the head wrapped in `@ ... @` and the tail in `# ... #`.
+
+    Inline typed-position markers are the standard relation-extraction input encoding: they tell
+    the model WHERE each entity sits and which one is the head (direction matters: per:employee_of
+    vs org:top_members/employees), instead of making it match the Head:/Tail: strings back into the
+    sentence. Closers are emitted before openers at a shared index so adjacent spans stay balanced.
+    """
+    toks = [_clean(t) for t in rec["token"]]
+    h0, h1 = rec["h"]["pos"]
+    t0, t1 = rec["t"]["pos"]
+    out: list[str] = []
+    for i in range(len(toks) + 1):
+        if i == h1:
+            out.append("@")
+        if i == t1:
+            out.append("#")
+        if i == h0:
+            out.append("@")
+        if i == t0:
+            out.append("#")
+        if i < len(toks):
+            out.append(toks[i])
+    return " ".join(out)
+
+
 def _example(rec: dict) -> RelationExample:
-    text = " ".join(_clean(t) for t in rec["token"])
     head = " ".join(_clean(t) for t in rec["token"][rec["h"]["pos"][0] : rec["h"]["pos"][1]])
     tail = " ".join(_clean(t) for t in rec["token"][rec["t"]["pos"][0] : rec["t"]["pos"][1]])
     return RelationExample(
-        prefix_text=f"Head: {head}\nTail: {tail}\nText: {text}",
+        prefix_text=f"Head: {head}\nTail: {tail}\nText: {_marked_text(rec)}",
         target_text=rec["relation"],
         relation=rec["relation"],
     )
