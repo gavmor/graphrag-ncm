@@ -34,8 +34,11 @@ from tokenization.hf_tokenizer import HFTokenizer
 
 from ncm_graphrag.ncm.task_registry import TASKS, TaskSpec
 
-BATCH_SIZE = 128
-LR = 3e-4
+# Schedule knobs are overridable so schedule experiments need no code edits. The sample budget
+# (batch * steps) is what bounds wall-clock, so trading one against the other re-optimises in the
+# same time. Defaults reproduce the shipped recipe exactly.
+BATCH_SIZE = int(os.environ.get("NCM_BATCH_SIZE", "128"))
+LR = float(os.environ.get("NCM_LR", "3e-4"))
 SEED = 1
 
 
@@ -87,7 +90,8 @@ def main() -> None:
 
     opt = torch.optim.AdamW(net.parameters(), lr=LR, weight_decay=0.01)
 
-    for step in range(task.generator_steps):
+    steps = int(os.environ.get("NCM_STEPS", str(task.generator_steps)))
+    for step in range(steps):
         sel = torch.randint(0, n, (BATCH_SIZE,))
         prefix_batch = prefix_data[sel].to(device)
         target_batch = target_data[sel].to(device)
@@ -119,7 +123,7 @@ def main() -> None:
         torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
         opt.step()
 
-        if step % 200 == 0 or step == task.generator_steps - 1:
+        if step % 200 == 0 or step == steps - 1:
             acc = (logits.argmax(-1) == idx).float().mean().item()
             print(f"[{args.task}] step {step:5d}  loss {loss.item():.4f}  level_acc {acc:.4f}", flush=True)
 
