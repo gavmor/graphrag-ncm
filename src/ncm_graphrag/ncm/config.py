@@ -197,7 +197,7 @@ def build_extraction_model_cfg() -> DictConfig:
             "query_level0": True,
             "tie_heads_to_codebook": True,
             "tie_heads_learn_scale": True,
-            "conditioning_noise": 0.08,
+            "conditioning_noise": 0.0,
             "save_path": str(EXTRACTION_ARTIFACT_DIR / "generator.pt"),
         }
     )
