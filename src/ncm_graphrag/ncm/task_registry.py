@@ -62,7 +62,7 @@ TASKS: dict[str, TaskSpec] = {
         is_well_formed=extraction.is_well_formed,
         tokenizer_steps=3500,
         tokenizer_n_examples=6000,
-        generator_steps=8000,
+        generator_steps=12000,
         generator_n_examples=200000,
     ),
 }
