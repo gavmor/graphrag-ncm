@@ -100,7 +100,17 @@ served over HTTP → wired into graphrag's real, unmodified `GlobalSearch` and
   extracted entity, consistent with this generator being ~143x smaller than the scale
   the background doc itself prescribes.
 
+**Real-data extraction was then measured, and it does not transfer.** The same
+architecture on two real annotated corpora (Re-DocRED; Few-NERD) scores **1-5% entity
+F1**, not the synthetic slice's structural-validity numbers. The failure is localised: the
+model has no span-copy mechanism, so recall is flat across name lengths (1-token 20%,
+5+ tokens 1.3%) and 93% of remaining errors are wholly invented names. One real defect was
+found and fixed along the way — targets upper-cased entity names, forcing a BPE-level case
+transform while copying — worth **1.56 → 4.56 F1**. Ceiling, capture, and every rejected
+in-budget lever are recorded in `docs/constraints.md` §7 so they are not re-run.
+
 Natural next slices following the same recipe: relationship extraction (decoupled
 from entity extraction, per the background doc's own suggestion), community-report
-generation, and training on real graphrag-produced data instead of closed-vocabulary
-synthetic templates (the biggest remaining gap for either slice to be production-useful).
+generation, and — for extraction to become production-useful — either the ~120M-parameter
+regime the background doc prescribes or constrained decoding to source spans
+(`docs/constraints.md` §7 #18).

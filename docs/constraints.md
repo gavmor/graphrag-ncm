@@ -161,3 +161,53 @@ package versions (torch build) while setting up this project's own `uv`-managed 
   `models/quant.py`'s `fine_drop` (lines 262-268, `aux.fine_drop.{prob,min_keep}` in
   both tasks' tokenizer configs) — already present upstream and already used by the
   map-stage tokenizer too, not something built newly for extraction.
+
+## 7. Real-data extraction: what the measured ceiling actually is
+
+The synthetic slice above reports high structural validity, but that result does not
+transfer. Measured on two real annotated corpora (Re-DocRED JSON; Few-NERD via
+`pyarrow`), the same architecture scores **1-5% entity F1**, and the reason is now
+localised rather than inferred.
+
+**13. Token names must be verbatim source substrings.** Targets originally upper-cased
+entity names, so copying `Warrick Dunn` required emitting `WARRICK DUNN` — entirely
+different BPE tokens. Scoring is case-insensitive either way, so the transform bought
+nothing and blocked copying outright. With verbatim names, F1 went **1.56 → 4.56** and
+recall on single-token names went **0% → 20%**. Assert this invariant if the data build
+changes (438/438 gold names occur verbatim in the prefix).
+
+**14. Failure is uniform across name lengths — it is a missing copy mechanism, not a
+span-boundary problem.** Recall by gold name length on Few-NERD validation: 1 token 20%,
+2 tokens 6.7%, 3 tokens 11.2%, 4 tokens 4.0%, 5+ tokens 1.3%; and 93% of remaining
+errors are wholly invented names (5% exact, 0% "name right, type wrong"). Type is never
+the bottleneck.
+
+**15. Ceiling and capture must be reported together.** The tokenizer-only reconstruction
+ceiling and the generator's fraction of it move in opposite directions:
+
+| configuration | tokenizer ceiling (F1) | generator F1 | capture |
+|---|---|---|---|
+| 256 codes, upper-cased targets | 30.83% | 1.72% | 5.6% |
+| **256 codes, verbatim targets** | 13.67% | **4.56%** | **33%** |
+| 512 codes, verbatim targets | 15.33% | 2.72% | 18% |
+
+Making the task well-posed raised capture 6x. Raising tokenizer capacity raises the
+ceiling but lowers capture, and accuracy dominates: **256 codes/level is optimal** in
+both regimes. Mixed-case/Unicode names also lowered the ceiling, so 256 is tighter than
+it used to be and still wins.
+
+**16. Teacher-forced accuracy is not a proxy for generation quality.** Four independent
+instances: 87.40% → 0.17 F1; 85.88% → 1.72; 89.01% (dropout 0.05) → 2.28 vs 86.49% →
+2.53; 87.38% (8 layers) → 2.89 vs 85.96% → 4.56. Do not pre-screen configurations on it.
+
+**17. Decode-side reranking has zero headroom.** With an oracle selecting the best of 16
+sampled candidates, F1 equals greedy exactly (3.83 on the pre-fix data, 6.67 after the
+verbatim-name fix). Sampling never produces a correct candidate greedy missed, so MBR or
+grounded selection cannot help. Span grounding only helps if it **constrains** decoding.
+
+**18. Every in-budget model lever has been swept and rejected**: capacity (10.95M →
+30.04M), depth (6 → 8), codebook size (512, 1024) and per-level grading, PAD-masked
+prefix attention, schedule (batch 64 x 24000 vs batch 128 x 12000), dropout 0.05, steps,
+encoder trainability, hierarchy depth, decode penalties. The honest remaining options are
+a ~120M-parameter model (the background doc's own regime, far outside a single-run budget
+here) or constrained decoding to source spans.
