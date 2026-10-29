@@ -263,3 +263,26 @@ def build_real_extraction_model_cfg() -> DictConfig:
 
 def build_real_extraction_generation_cfg() -> DictConfig:
     return build_extraction_generation_cfg()
+
+
+# --- Few-NERD entity extraction ---
+# Same architecture/settings as `real_extraction`; the swap is corpus only (6x more
+# training sentences, 8 real coarse types instead of Re-DocRED's 6).
+
+FEWNERD_EXTRACTION_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "fewnerd_extraction"
+
+
+def build_fewnerd_extraction_tokenizer_cfg() -> DictConfig:
+    cfg = build_real_extraction_tokenizer_cfg()
+    cfg.save_path = str(FEWNERD_EXTRACTION_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_fewnerd_extraction_model_cfg() -> DictConfig:
+    cfg = build_real_extraction_model_cfg()
+    cfg.save_path = str(FEWNERD_EXTRACTION_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_fewnerd_extraction_generation_cfg() -> DictConfig:
+    return build_extraction_generation_cfg()

@@ -12,6 +12,7 @@ dependencies = [
     "litellm[proxy]>=1.83.0",
     "numpy>=2.2.6",
     "omegaconf>=2.3.1",
+    "pyarrow>=25.0.1",
     "pyyaml>=6.0.3",
     "regex>=2026.9.29",
     "rouge-score>=0.1.2",

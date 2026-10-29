@@ -14,7 +14,7 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-from ncm_graphrag.data import extraction, map_stage, real_extraction
+from ncm_graphrag.data import extraction, fewnerd_extraction, map_stage, real_extraction
 from ncm_graphrag.ncm import config
 
 
@@ -82,5 +82,18 @@ TASKS: dict[str, TaskSpec] = {
         generator_n_examples=8000,
         # Re-DocRED dev documents are never trained on.
         benchmark_examples=lambda: real_extraction.eval_examples("dev", 300, 42),
+    ),
+    "fewnerd_extraction": TaskSpec(
+        generate_examples=fewnerd_extraction.generate_examples,
+        build_tokenizer_cfg=config.build_fewnerd_extraction_tokenizer_cfg,
+        build_model_cfg=config.build_fewnerd_extraction_model_cfg,
+        build_generation_cfg=config.build_fewnerd_extraction_generation_cfg,
+        is_well_formed=extraction.is_well_formed,
+        tokenizer_steps=6000,
+        tokenizer_n_examples=6000,
+        generator_steps=12000,
+        generator_n_examples=50000,
+        # Few-NERD `validation` sentences are never trained on.
+        benchmark_examples=lambda: fewnerd_extraction.eval_examples("validation", 300, 42),
     ),
 }
