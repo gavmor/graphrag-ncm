@@ -380,3 +380,35 @@ def build_relation_tacred_model_cfg() -> DictConfig:
 
 def build_relation_tacred_generation_cfg() -> DictConfig:
     return build_extraction_generation_cfg()
+
+
+# --- Community-report-style drafting on Multi-News ---
+# Free-text target (<= 48 gpt2 tokens), so the 5-level real-extraction architecture is reused with a
+# 48-token output and a 288-token prefix (the lead of each article in a cluster). Decode penalties
+# stay OFF as in the other free-text-structured tasks until measured otherwise.
+
+REPORT_LEVELS = [2, 6, 12, 24, 48]
+REPORT_CONTEXT_LENGTH = 48
+REPORT_PREFIX_LEN = 288
+REPORT_MULTINEWS_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "report_multinews"
+
+
+def build_report_multinews_tokenizer_cfg() -> DictConfig:
+    cfg = build_real_extraction_tokenizer_cfg()
+    cfg.vqvae.context_length = REPORT_CONTEXT_LENGTH
+    cfg.vqvae.vqvae_vocab_size = list(REAL_EXTRACTION_CODEBOOKS)
+    cfg.vqvae.vector_quantizer_config.levels.manual_levels = REPORT_LEVELS
+    cfg.save_path = str(REPORT_MULTINEWS_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_report_multinews_model_cfg() -> DictConfig:
+    cfg = build_real_extraction_model_cfg()
+    cfg.prefix_len = REPORT_PREFIX_LEN
+    cfg.context_length = REPORT_CONTEXT_LENGTH
+    cfg.save_path = str(REPORT_MULTINEWS_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_report_multinews_generation_cfg() -> DictConfig:
+    return build_extraction_generation_cfg()

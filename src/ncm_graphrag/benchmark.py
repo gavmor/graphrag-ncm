@@ -15,6 +15,7 @@ import torch
 from ncm_graphrag.data.extraction import parse_records
 from ncm_graphrag.data.map_stage_real import predicted_score
 from ncm_graphrag.data.relation_tacred import micro_f1, predicted_label
+from ncm_graphrag.data.report_multinews import grounding, rouge1_f
 from ncm_graphrag.ncm.generate import NCMTaskGenerator
 from ncm_graphrag.ncm.task_registry import TASKS
 
@@ -46,6 +47,8 @@ def run_benchmark():
 
     if spec.metric == "score_auc":
         return _score_benchmark(gen, examples, t0, spec)
+    if spec.metric == "draft_rouge":
+        return _draft_benchmark(gen, examples, t0)
     if spec.metric == "relation_f1":
         return _relation_benchmark(gen, examples, t0)
 
@@ -137,6 +140,30 @@ def _score_benchmark(gen, examples, t0, spec) -> None:
     print(f"METRIC throughput_tok_per_sec={throughput:.2f}")
     print(f"METRIC latency_ms={latency_ms:.2f}")
     print(f"METRIC valid_rate={valid_count / max(len(examples), 1):.4f}")
+
+
+def _draft_benchmark(gen, examples, t0) -> None:
+    """ROUGE-1 vs the human reference sentence plus source grounding, over a held-out sample.
+
+    Neither is faithfulness (see report_multinews.py): the blind claim-level judge is the real test.
+    The lead-sentence baseline's numbers are printed alongside so the NCM is never read in isolation.
+    """
+    outs = [gen.generate(e.prefix_text) for e in examples]
+    r1 = [rouge1_f(o, e.target_text) for o, e in zip(outs, examples, strict=False)]
+    gr = [grounding(o, e.prefix_text) for o, e in zip(outs, examples, strict=False)]
+    lead = [e.prefix_text.split(" || ")[0].split(". ")[0] for e in examples]
+    lr1 = [rouge1_f(o, e.target_text) for o, e in zip(lead, examples, strict=False)]
+    valid = sum(1 for o in outs if gen.is_well_formed(o))
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    elapsed = time.perf_counter() - t0
+    n = max(len(examples), 1)
+    print(f"METRIC draft_rouge1={100.0 * sum(r1) / n:.2f}")
+    print(f"METRIC draft_grounding={100.0 * sum(gr) / n:.2f}")
+    print(f"METRIC lead1_rouge1={100.0 * sum(lr1) / n:.2f}")
+    print(f"METRIC throughput_tok_per_sec={(gen.prefix_len + gen.net.L) * n / elapsed if elapsed > 0 else 0.0:.2f}")
+    print(f"METRIC latency_ms={elapsed / n * 1000.0:.2f}")
+    print(f"METRIC valid_rate={valid / n:.4f}")
 
 
 def _relation_benchmark(gen, examples, t0) -> None:

@@ -22,6 +22,7 @@ from ncm_graphrag.data import (
     map_stage_real,
     real_extraction,
     relation_tacred,
+    report_multinews,
 )
 from ncm_graphrag.ncm import config
 
@@ -108,6 +109,19 @@ TASKS: dict[str, TaskSpec] = {
         generator_n_examples=67000,
         benchmark_examples=relation_tacred.benchmark_examples,
         metric="relation_f1",
+    ),
+    "report_multinews": TaskSpec(
+        generate_examples=report_multinews.generate_examples,
+        build_tokenizer_cfg=config.build_report_multinews_tokenizer_cfg,
+        build_model_cfg=config.build_report_multinews_model_cfg,
+        build_generation_cfg=config.build_report_multinews_generation_cfg,
+        is_well_formed=report_multinews.is_well_formed,
+        tokenizer_steps=6000,
+        tokenizer_n_examples=8000,
+        generator_steps=12000,
+        generator_n_examples=40000,
+        benchmark_examples=report_multinews.benchmark_examples,
+        metric="draft_rouge",
     ),
     "extraction": TaskSpec(
         generate_examples=extraction.generate_examples,
