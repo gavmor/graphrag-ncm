@@ -264,3 +264,20 @@ what it contributes is valid bounded JSON at ~12 ms/call and ~17k tok/s.
 **24. Not yet wired into serving.** `map_stage_real` / `map_stage_hotpot` are benchmarked tasks;
 the litellm `HybridCompletion` path still serves the synthetic `mapstage` model. A serving
 prefix builder would have to compute the same `Features:` line from the query and report.
+
+**25. Speed-vs-quality against an autoregressive LLM (same 300 held-out HotpotQA examples).**
+Claude (`claude-haiku-5-5`, query + report only, no features) vs the NCM (given its 5-feature line):
+
+| | AUC | valid | latency / call |
+|---|---|---|---|
+| Claude haiku-5-5 | **90.87** | 0.997 | **1,959 ms** median (p90 2,860) |
+| NCM, 0.84M params | 71.87 | 0.967 | **12 ms** |
+| lookup table over the NCM's features (no neural net) | ~75 | 1.0 | microseconds |
+
+~19 AUC points of relevance quality cost ~160x the latency. Caveats that matter: the Claude
+latency is a network round-trip run 8-way concurrent and includes hidden reasoning (a 120-token
+cap returned `content=None` / `finish_reason=length` on every call, which an earlier run of this
+comparison mis-read as 8% validity and a bogus 98 AUC on 24 outputs); the NCM number is in-process,
+batch=1, no network. n=300, one NCM training seed. On this task the NCM sits *between* a
+free feature lookup and a strong LLM without dominating either, so its case rests on bounded-JSON
+throughput, not on relevance judgement.

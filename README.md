@@ -112,8 +112,10 @@ in-budget lever are recorded in `docs/constraints.md` §7 so they are not re-run
 **Real map-stage scoring was also measured** (HotpotQA human-annotated relevance, held-out
 score AUC). The raw-text NCM scores 61.3, barely above BM25 (59.1); handing it five cheap lexical
 features raises that to 72.6, above a linear classifier on the same features (66.7) but below a
-lookup table over them (75.2). So NCM emits valid bounded map-stage JSON fast (~12 ms/call,
-~17k tok/s) but has not been shown to *judge* relevance from text. Label leaks found and fixed
+lookup table over them (75.2). Against Claude haiku-5-5 on the same 300 held-out examples, Claude
+scores 90.9 AUC at ~2 s/call versus the NCM's 71.9 at 12 ms/call (~160x faster, ~19 AUC lower; not
+like-for-like: network+reasoning vs in-process). NCM emits valid bounded map-stage JSON fast but
+has not been shown to *judge* relevance from text. Label leaks found and fixed
 along the way, and the control baselines to report, are in `docs/constraints.md` §8.
 
 Natural next slices following the same recipe: relationship extraction (decoupled
