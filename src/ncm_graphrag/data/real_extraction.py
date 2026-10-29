@@ -85,8 +85,16 @@ def _is_safe_field(text: str) -> bool:
 
 
 def _record(name: str, entity_type: str) -> str:
+    """Emit the entity name exactly as it appears in the source text.
+
+    Names used to be upper-cased here, which forced the generator to perform a case
+    transform while copying (`Warrick Dunn` -> `WARRICK DUNN`, entirely different BPE
+    tokens). Scoring is case-insensitive either way, so the upper-casing bought nothing and
+    made an already-hard copy task harder: every gold name now occurs verbatim in the prefix
+    (verified 438/438 = 100% on Few-NERD validation).
+    """
     desc = "Mentioned in the text."
-    return f'("entity"{TUPLE_DELIMITER}{name.upper()}{TUPLE_DELIMITER}{entity_type}{TUPLE_DELIMITER}{desc})'
+    return f'("entity"{TUPLE_DELIMITER}{name}{TUPLE_DELIMITER}{entity_type}{TUPLE_DELIMITER}{desc})'
 
 
 def _iter_docs(split: str):
