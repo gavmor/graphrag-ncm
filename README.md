@@ -118,6 +118,13 @@ like-for-like: network+reasoning vs in-process). NCM emits valid bounded map-sta
 has not been shown to *judge* relevance from text. Label leaks found and fixed
 along the way, and the control baselines to report, are in `docs/constraints.md` §8.
 
+**Closed-vocabulary relation classification (TACRED, Lead 2) was measured too**, because a fixed
+label set removes the string-copying bottleneck. A from-scratch 0.83M NCM reaches **25.8 micro-F1**
+(3-seed mean, sd 0.5; every output a valid label; ~7 ms/call): on par with naive Bayes (23.0) and
+well below a bag-of-words softmax regression (44.7) and Claude haiku-5-5 (61.8, ~900 ms/call).
+What did and did not move it, and the traps hit along the way (sorted val file, leaky train
+holdout, single-seed deltas that reversed on replication), are in `docs/constraints.md` §9.
+
 Natural next slices following the same recipe: relationship extraction (decoupled
 from entity extraction, per the background doc's own suggestion), community-report
 generation, and — for extraction to become production-useful — either the ~120M-parameter

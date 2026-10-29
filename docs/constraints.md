@@ -281,3 +281,61 @@ comparison mis-read as 8% validity and a bogus 98 AUC on 24 outputs); the NCM nu
 batch=1, no network. n=300, one NCM training seed. On this task the NCM sits *between* a
 free feature lookup and a strong LLM without dominating either, so its case rests on bounded-JSON
 throughput, not on relevance judgement.
+
+## 9. Closed-vocabulary relation classification (Lead 2): what was measured
+
+Lead 2 was chosen because the output is a member of a fixed label set: nothing has to be copied
+from the input, which removed the bottleneck that capped entity extraction (§7).
+
+**26. Task, data, metric.** TACRED (the OpenNRE-format copy staged here: 68,124 train / 22,631 val /
+15,509 test, 42 classes, `NA` = 81% of train, **no entity types**). Prefix is `Head: ..\nTail: ..\n
+Between: ..\nText: <sentence with @head@ and #tail# markers>`; the target is the relation's index in the
+sorted label list (`NA` = 0), a single GPT-2 token. Benchmark: a seeded random 3,000-example sample of
+**validation** (717 non-NA positives, 41 classes). Metric: micro-F1 over non-`NA` relations, with an
+invalid output counted as a miss, so always-`NA` scores 0. `val.txt` is **sorted**: its first 3,000
+lines cover only 14 of the 42 classes, so a prefix sample would be meaningless.
+
+**27. Where the NCM lands (held-out micro-F1; NCM numbers are 3-seed means):**
+
+| model | micro-F1 | note |
+|---|---|---|
+| always `NA` | 0.0 | accuracy 76.1% |
+| naive Bayes (between/around words) | 23.0 | P15.7 / R43.0 |
+| **NCM, 0.83M params** | **25.75 +- 0.5** | 26.28 / 25.73 / 25.25; valid_rate 1.000; ~7 ms/call |
+| softmax regression (hashed words, no neural net) | **44.7** | P60.6 / R35.4 |
+| Claude haiku-5-5 (n=400 subset; NCM 25.3 on the same) | **61.8** | ~907 ms median per call |
+
+Read honestly: removing string-copying did **not** let a from-scratch 0.83M NCM compete. It is on par
+with naive Bayes and ~19 points below a bag-of-words linear classifier. Against Claude it is ~146x
+faster per call and ~36 F1 points lower (not like-for-like: Claude is a network call run 8-way
+concurrent; the NCM is in-process, batch 1; 6 Claude answers had trailing "Hmm, wait" text after a
+correct label and were counted invalid under strict parsing).
+
+**28. What moved the NCM, and what did not.** Only the first two exceed measured noise:
+
+| change | F1 | verdict |
+|---|---|---|
+| natural class mix (67k, 81% NA), label string target | 5.18 | collapses to `NA` (predicts NA 94% of the time **in-sample**); accuracy 75.4% is *below* always-NA |
+| downsample `NA` to 40% of the training pool | 17.82 | big, real: recall 2.9 -> 19.3 |
+| inline `@`/`#` entity markers | 22.26 | +4.4, single seed |
+| `Between:` field | 24.80 | +2.5, within noise (label-string seeds 24.80/24.76/21.58) |
+| numeric-id target (context 32 -> 8) | 26.28 | F1 within noise, but **valid_rate 0.962 -> 1.000** (structural) |
+| dropout 0.3 | 29.70 on seed 1, **24.01 / 22.24** on seeds 2/3 | does not replicate (mean 25.3, sd 3.9) |
+| dropout 0.5 | 23.55 | P38.2 / R17.0: trades recall for precision |
+| `NA` at 60% | 23.29 | no gain |
+| 3,000 steps instead of 8,000 | 8.60 | undertrains toward the NA prior |
+
+After rebalancing the model memorises: in-sample F1 68.3 vs held-out 21.9. Fewer steps and more
+dropout did not close that gap; they only moved the precision/recall operating point.
+
+**29. Measurement traps (each nearly produced a wrong conclusion).**
+- `val.txt` is sorted; always sample randomly.
+- A holdout cut from the *train* split leaks: TACRED has several entity pairs per sentence, so a
+  linear baseline scored 60.3 on it but 44.7 on validation (names drive the leak).
+- `level_acc` is useless here: the 32-token context is mostly padding, so 0.996 coexisted with
+  collapse to `NA`.
+- Single-seed deltas of a few points are noise. Seed 1 also fixes the training-pool sample and was
+  the best draw every time (24.8, 26.3, 29.7). Run #80's +3.4 reversed under replication, and the
+  seed spread itself depends on the configuration (sd 0.5 at dropout 0.1, 3.9 at 0.3).
+- Training-schedule overrides (`NCM_STEPS` etc.) had been silently reverted by an earlier discard
+  that reset the worktree; the training log's last step (7999 instead of 3999) exposed it.
