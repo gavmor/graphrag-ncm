@@ -243,20 +243,29 @@ REAL_EXTRACTION_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "real_extraction"
 # measured tokenizer-only ceiling on Re-DocRED dev was 90.2% token accuracy -> 5.83% entity
 # F1, i.e. the VQ tokenizer (not the generator) bounds real-data extraction.
 REAL_EXTRACTION_EMBED_DIM = 128
-REAL_EXTRACTION_CODEBOOK = 256
+
+# Uniform 256 codes/level. Two neighbours were measured and both are worse:
+#   uniform 1024   -> tokenizer ceiling 56.58% but teacher-forced 78.1%, real F1 0.17
+#   per-level      -> tokenizer ceiling 18.58%, teacher-forced 87.4%, real F1 0.17
+#                    ([16,32,64,128,256]; shrinking the coarse levels starves the residual
+#                     that the finest level has to correct)
+# Uniform 256 -> ceiling 30.83%, teacher-forced 85.9%, real F1 1.72. Codebook sizing is a
+# trade-off curve with an interior optimum, not free capacity.
+REAL_EXTRACTION_CODEBOOKS = [256] * len(EXTRACTION_LEVELS)
+assert len(REAL_EXTRACTION_CODEBOOKS) == len(EXTRACTION_LEVELS)
 
 
 def build_real_extraction_tokenizer_cfg() -> DictConfig:
     cfg = build_extraction_tokenizer_cfg()
     cfg.vqvae.embed_dim = REAL_EXTRACTION_EMBED_DIM
-    cfg.vqvae.vqvae_vocab_size = [REAL_EXTRACTION_CODEBOOK] * len(EXTRACTION_LEVELS)
+    cfg.vqvae.vqvae_vocab_size = list(REAL_EXTRACTION_CODEBOOKS)
     cfg.save_path = str(REAL_EXTRACTION_ARTIFACT_DIR / "tokenizer.pt")
     return cfg
 
 
 def build_real_extraction_model_cfg() -> DictConfig:
     cfg = build_extraction_model_cfg()
-    cfg.vocab_size = [REAL_EXTRACTION_CODEBOOK] * len(EXTRACTION_LEVELS)
+    cfg.vocab_size = list(REAL_EXTRACTION_CODEBOOKS)
     cfg.save_path = str(REAL_EXTRACTION_ARTIFACT_DIR / "generator.pt")
     return cfg
 
