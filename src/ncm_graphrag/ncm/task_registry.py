@@ -21,6 +21,7 @@ from ncm_graphrag.data import (
     map_stage_hotpot,
     map_stage_real,
     real_extraction,
+    relation_tacred,
 )
 from ncm_graphrag.ncm import config
 
@@ -40,7 +41,8 @@ class TaskSpec:
     # override this so the benchmark never scores in-sample data.
     benchmark_examples: Callable[[], list[Any]] | None = None
     # Which metric the benchmark reports for this task: "entity_f1" for extraction-style
-    # tasks, "score_auc" for bounded-ordinal-score tasks (the map stage).
+    # tasks, "score_auc" for bounded-ordinal-score tasks (the map stage), "relation_f1" for
+    # closed-vocabulary relation classification.
     metric: str = "entity_f1"
 
 
@@ -93,6 +95,19 @@ TASKS: dict[str, TaskSpec] = {
         generator_n_examples=60000,
         benchmark_examples=map_stage_hotpot.benchmark_examples,
         metric="score_auc",
+    ),
+    "relation_tacred": TaskSpec(
+        generate_examples=relation_tacred.generate_examples,
+        build_tokenizer_cfg=config.build_relation_tacred_tokenizer_cfg,
+        build_model_cfg=config.build_relation_tacred_model_cfg,
+        build_generation_cfg=config.build_relation_tacred_generation_cfg,
+        is_well_formed=relation_tacred.is_well_formed,
+        tokenizer_steps=3000,
+        tokenizer_n_examples=6000,
+        generator_steps=8000,
+        generator_n_examples=67000,
+        benchmark_examples=relation_tacred.benchmark_examples,
+        metric="relation_f1",
     ),
     "extraction": TaskSpec(
         generate_examples=extraction.generate_examples,

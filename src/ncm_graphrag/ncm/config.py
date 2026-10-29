@@ -344,3 +344,31 @@ def build_map_stage_hotpot_model_cfg() -> DictConfig:
 
 def build_map_stage_hotpot_generation_cfg() -> DictConfig:
     return build_map_stage_real_generation_cfg()
+
+
+# --- Closed-vocabulary relation classification on TACRED (Lead 2) ---
+# The target is a bare relation label (<= 12 gpt2 tokens), so the map-stage tokenizer (32-token
+# context) is reused unchanged and only the prefix grows: head + tail + a ~35-word sentence.
+# Decode penalties are OFF: a label like `per:stateorprovince_of_birth` legitimately repeats
+# sub-tokens ("per", ":", "_"), and the frequency/adjacency penalty would corrupt it - the same
+# failure measured on the extraction grammar (docs/architecture.md).
+
+RELATION_TACRED_PREFIX_LEN = 128
+RELATION_TACRED_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "relation_tacred"
+
+
+def build_relation_tacred_tokenizer_cfg() -> DictConfig:
+    cfg = build_tokenizer_cfg()
+    cfg.save_path = str(RELATION_TACRED_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_relation_tacred_model_cfg() -> DictConfig:
+    cfg = build_model_cfg()
+    cfg.prefix_len = RELATION_TACRED_PREFIX_LEN
+    cfg.save_path = str(RELATION_TACRED_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_relation_tacred_generation_cfg() -> DictConfig:
+    return build_extraction_generation_cfg()

@@ -14,6 +14,7 @@ import torch
 
 from ncm_graphrag.data.extraction import parse_records
 from ncm_graphrag.data.map_stage_real import predicted_score
+from ncm_graphrag.data.relation_tacred import micro_f1, predicted_label
 from ncm_graphrag.ncm.generate import NCMTaskGenerator
 from ncm_graphrag.ncm.task_registry import TASKS
 
@@ -45,6 +46,8 @@ def run_benchmark():
 
     if spec.metric == "score_auc":
         return _score_benchmark(gen, examples, t0, spec)
+    if spec.metric == "relation_f1":
+        return _relation_benchmark(gen, examples, t0)
 
     for e in examples:
         out = gen.generate(e.prefix_text)
@@ -134,6 +137,31 @@ def _score_benchmark(gen, examples, t0, spec) -> None:
     print(f"METRIC throughput_tok_per_sec={throughput:.2f}")
     print(f"METRIC latency_ms={latency_ms:.2f}")
     print(f"METRIC valid_rate={valid_count / max(len(examples), 1):.4f}")
+
+
+def _relation_benchmark(gen, examples, t0) -> None:
+    """Micro-F1 over non-NA relations (the TACRED convention).
+
+    An invalid output (not one of the task's labels) is a miss, never silently dropped, and `NA`
+    predictions never count as hits, so always saying `NA` scores 0.
+    """
+    gold = [e.relation for e in examples]
+    pred = [predicted_label(gen.generate(e.prefix_text)) for e in examples]
+    prec, rec, f1 = micro_f1(gold, pred)
+    valid = sum(1 for p in pred if p is not None)
+    acc = sum(1 for g, p in zip(gold, pred, strict=False) if p == g) / max(len(examples), 1)
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    elapsed = time.perf_counter() - t0
+    total_tokens = (gen.prefix_len + gen.net.L) * len(examples)
+    print(f"METRIC relation_f1={f1 * 100.0:.2f}")
+    print(f"METRIC relation_precision={prec * 100.0:.2f}")
+    print(f"METRIC relation_recall={rec * 100.0:.2f}")
+    print(f"METRIC relation_acc={acc * 100.0:.2f}")
+    print(f"METRIC throughput_tok_per_sec={total_tokens / elapsed if elapsed > 0 else 0.0:.2f}")
+    print(f"METRIC latency_ms={(elapsed / len(examples)) * 1000.0 if examples else 0.0:.2f}")
+    print(f"METRIC valid_rate={valid / max(len(examples), 1):.4f}")
 
 
 if __name__ == "__main__":
