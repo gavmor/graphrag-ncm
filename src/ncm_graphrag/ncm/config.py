@@ -428,3 +428,33 @@ def build_report_multinews_generation_cfg() -> DictConfig:
     if os.environ.get("NCM_DECODE_PENALTY", "0") == "1":
         return build_generation_cfg()
     return build_extraction_generation_cfg()
+
+
+# --- REBEL GraphRAG-style entity and relationship extraction ---
+REBEL_ARTIFACT_DIR = PROJECT_ROOT / "artifacts" / "rebel_extraction"
+REBEL_LEVELS = [4, 8, 16, 32, 64, 128]
+
+
+def build_rebel_tokenizer_cfg() -> DictConfig:
+    cfg = build_real_extraction_tokenizer_cfg()
+    cfg.vqvae.context_length = REBEL_LEVELS[-1]
+    cfg.vqvae.vqvae_vocab_size = [512] * len(REBEL_LEVELS)
+    cfg.vqvae.vector_quantizer_config.levels.manual_levels = REBEL_LEVELS
+    cfg.save_path = str(REBEL_ARTIFACT_DIR / "tokenizer.pt")
+    return cfg
+
+
+def build_rebel_model_cfg() -> DictConfig:
+    cfg = build_real_extraction_model_cfg()
+    cfg.n_layer = 13
+    cfg.n_head = 12
+    cfg.n_embd = 768
+    cfg.dropout = 0.1
+    cfg.prefix_len = 512
+    cfg.vocab_size = [512] * len(REBEL_LEVELS)
+    cfg.save_path = str(REBEL_ARTIFACT_DIR / "generator.pt")
+    return cfg
+
+
+def build_rebel_generation_cfg() -> DictConfig:
+    return build_extraction_generation_cfg()

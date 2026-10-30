@@ -14,6 +14,7 @@ import torch
 
 from ncm_graphrag.data.extraction import parse_records
 from ncm_graphrag.data.map_stage_real import predicted_score
+from ncm_graphrag.data.rebel_extraction import graph_sets
 from ncm_graphrag.data.relation_tacred import micro_f1, predicted_label
 from ncm_graphrag.data.report_multinews import entnum_grounding, grounding, rouge1_f
 from ncm_graphrag.ncm.generate import NCMTaskGenerator
@@ -51,6 +52,8 @@ def run_benchmark():
         return _draft_benchmark(gen, examples, t0)
     if spec.metric == "relation_f1":
         return _relation_benchmark(gen, examples, t0)
+    if spec.metric == "graph_f1":
+        return _graph_benchmark(gen, examples)
 
     for e in examples:
         out = gen.generate(e.prefix_text)
@@ -194,6 +197,27 @@ def _relation_benchmark(gen, examples, t0) -> None:
     print(f"METRIC throughput_tok_per_sec={total_tokens / elapsed if elapsed > 0 else 0.0:.2f}")
     print(f"METRIC latency_ms={(elapsed / len(examples)) * 1000.0 if examples else 0.0:.2f}")
     print(f"METRIC valid_rate={valid / max(len(examples), 1):.4f}")
+
+
+def _graph_benchmark(gen, examples) -> None:
+    """Micro precision/recall/F1 for names and directed, labeled relation triples."""
+    counts = [[0, 0, 0] for _ in range(3)]
+    valid = 0
+    for example in examples:
+        output = gen.generate(example.prefix_text)
+        valid += int(gen.is_well_formed(output))
+        for count, gold, predicted in zip(counts, graph_sets(example.target_text), graph_sets(output), strict=True):
+            count[0] += len(gold & predicted)
+            count[1] += len(predicted)
+            count[2] += len(gold)
+    for name, (tp, pred, gold) in zip(("entity", "typed_entity", "relation"), counts, strict=True):
+        precision = tp / pred if pred else 0.0
+        recall = tp / gold if gold else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        print(f"METRIC {name}_precision={precision * 100:.2f}")
+        print(f"METRIC {name}_recall={recall * 100:.2f}")
+        print(f"METRIC {name}_f1={f1 * 100:.2f}")
+    print(f"METRIC valid_rate={valid / len(examples) if examples else 0.0:.4f}")
 
 
 if __name__ == "__main__":

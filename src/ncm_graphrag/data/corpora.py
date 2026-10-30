@@ -10,29 +10,30 @@ Datasets correspond to those identified in 'GraphRAG Training Dataset Discovery.
 import csv
 import gzip
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-# Default path to corpora root directory relative to this file
-_DATA_DIR = Path(__file__).resolve().parent
-_REPO_ROOT = _DATA_DIR.parent.parent.parent
-CORPORA_ROOT = _REPO_ROOT / "corpora"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DEFAULT_CORPORA_ROOT = _REPO_ROOT / "corpora"
 
 
 def get_corpora_root() -> Path:
-    """Return the absolute Path to the local corpora/ directory."""
-    return CORPORA_ROOT
+    """Return the configured corpus root, defaulting to this checkout's `corpora/`."""
+    configured = os.environ.get("NCM_CORPORA_ROOT")
+    return Path(configured).expanduser().resolve() if configured else _DEFAULT_CORPORA_ROOT
 
 
 def load_manifest() -> dict[str, dict[str, Any]]:
     """Load the dataset manifest mapping dataset names to metadata and disk paths."""
-    manifest_path = CORPORA_ROOT / "manifest.json"
+    manifest_path = get_corpora_root() / "manifest.json"
     if not manifest_path.exists():
         raise FileNotFoundError(
-            f"Corpora manifest not found at {manifest_path}. Run `python scripts/fetch_corpora.py --all` first."
+            f"Corpora manifest not found at {manifest_path}. "
+            "Run `uv run python scripts/fetch_corpora.py --all` or set NCM_CORPORA_ROOT."
         )
-    with open(manifest_path, encoding="utf-8") as f:
-        data: dict[str, dict[str, Any]] = json.load(f)
+    with manifest_path.open(encoding="utf-8") as handle:
+        data: dict[str, dict[str, Any]] = json.load(handle)
         return data
 
 
@@ -49,12 +50,18 @@ def list_corpora(category: str | None = None) -> list[dict[str, Any]]:
 
 
 def get_corpus_path(name: str) -> Path:
-    """Resolve the absolute filesystem Path to a dataset directory."""
+    """Resolve a manifest entry beneath the configured corpus root."""
     manifest = load_manifest()
     if name not in manifest:
-        raise KeyError(f"Dataset '{name}' not found in manifest. Available: {sorted(manifest.keys())}")
-    rel_path = manifest[name]["path"]
-    target = _REPO_ROOT / rel_path
+        raise KeyError(f"Dataset '{name}' not found in manifest. Available: {sorted(manifest)}")
+    stored = Path(str(manifest[name]["path"]))
+    if stored.is_absolute():
+        target = stored
+    else:
+        # Older manifests stored paths relative to the repository (`corpora/...`);
+        # current manifests store paths relative to NCM_CORPORA_ROOT.
+        parts = stored.parts[1:] if stored.parts and stored.parts[0] == "corpora" else stored.parts
+        target = get_corpora_root().joinpath(*parts)
     if not target.exists():
         raise FileNotFoundError(f"Corpus path for '{name}' does not exist on disk: {target}")
     return target

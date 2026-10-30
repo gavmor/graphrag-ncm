@@ -9,6 +9,7 @@ Datasets are organized into 4 categories under `corpora/`:
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,12 @@ from pathlib import Path
 from huggingface_hub import hf_hub_download, snapshot_download
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-CORPORA_DIR = BASE_DIR / "corpora"
+CORPORA_DIR = Path(os.environ.get("NCM_CORPORA_ROOT", BASE_DIR / "corpora")).expanduser().resolve()
+
+
+def _manifest_path(path: Path) -> str:
+    """Store paths relative to NCM_CORPORA_ROOT so manifests remain relocatable."""
+    return str(path.relative_to(CORPORA_DIR))
 
 
 def get_dir_size(path: Path) -> int:
@@ -44,16 +50,17 @@ def format_size(bytes_val: int) -> str:
 
 def update_manifest(entry: dict):
     manifest_path = CORPORA_DIR / "manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest = {}
     if manifest_path.exists():
         try:
-            with open(manifest_path) as f:
-                manifest = json.load(f)
-        except Exception:
+            with manifest_path.open(encoding="utf-8") as handle:
+                manifest = json.load(handle)
+        except (OSError, json.JSONDecodeError):
             manifest = {}
     manifest[entry["name"]] = entry
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=2)
+    with manifest_path.open("w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
 
 
 # ==============================================================================
@@ -80,7 +87,7 @@ def fetch_docred():
             "source": "https://huggingface.co/datasets/thunlp/docred",
             "citation": "5, 6",
             "description": "DocRED document-level relation extraction (Wikipedia, 96 Wikidata relations)",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -106,7 +113,7 @@ def fetch_re_docred():
             "source": "https://huggingface.co/datasets/tonytan48/Re-DocRED",
             "citation": "7",
             "description": "Re-DocRED re-annotated document-level relation extraction addressing false-negatives",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -132,7 +139,7 @@ def fetch_few_nerd():
             "source": "https://huggingface.co/datasets/DFKI-SLT/few-nerd",
             "citation": "10, 11",
             "description": "Few-NERD fine-grained entity typing (8 coarse, 66 fine types across 188.2k sentences)",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -158,7 +165,7 @@ def fetch_sciriff():
             "source": "https://huggingface.co/datasets/allenai/SciRIFF",
             "citation": "14",
             "description": "SciRIFF scientific instruction-tuning suite for information extraction and claims",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -197,7 +204,7 @@ def fetch_scierc():
             "source": "http://nlp.cs.washington.edu/sciIE/ & https://huggingface.co/datasets/zj88zj/SCIERC",
             "citation": "12, 13",
             "description": "SciERC scientific abstracts with 6 entity types and 7 directional relations",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -230,7 +237,7 @@ def fetch_tacred():
             "source": "https://huggingface.co/datasets/DFKI-SLT/tacred & https://huggingface.co/datasets/xiaobendanyn/tacred",
             "citation": "8, 9",
             "description": "TACRED 106k sentence relation extraction instances across 41 relation classes",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -257,7 +264,7 @@ def fetch_re_tacred():
             "source": "https://github.com/gstoica27/Re-TACRED",
             "citation": "8",
             "description": "Re-TACRED revised labels and patches addressing TACRED label inconsistencies",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -288,7 +295,7 @@ def fetch_rebel():
             "source": "https://huggingface.co/datasets/Babelscape/rebel-dataset",
             "citation": "15, 19, 53",
             "description": "REBEL end-to-end relation extraction seq2seq dataset (triples from Wikipedia)",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -330,7 +337,7 @@ def fetch_sredfm():
             "description": (
                 "SREDFM Silver Relation Extraction Dataset with Filtering Models (English evaluation splits)"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -373,7 +380,7 @@ def fetch_hotpotqa():
             "source": "https://huggingface.co/datasets/hotpotqa/hotpot_qa",
             "citation": "16, 24",
             "description": "HotpotQA multi-hop reasoning benchmark with sentence-level gold supporting facts",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -401,7 +408,7 @@ def fetch_musique():
             "description": (
                 "MuSiQue multi-hop question answering dataset with distractor paragraphs and decomposed hops"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -427,7 +434,7 @@ def fetch_kilt():
             "source": "https://huggingface.co/datasets/facebook/kilt_tasks",
             "citation": "20, 21",
             "description": "KILT 11 knowledge-intensive tasks benchmark over Wikipedia provenance",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -450,7 +457,7 @@ def fetch_kilt():
             "source": "https://huggingface.co/datasets/facebook/kilt_wikipedia",
             "citation": "22",
             "description": "KILT Wikipedia knowledge source loader script and schema definition",
-            "path": str(wiki_target.relative_to(BASE_DIR)),
+            "path": _manifest_path(wiki_target),
             "size_bytes": wiki_size,
             "size_human": format_size(wiki_size),
         }
@@ -478,7 +485,7 @@ def fetch_graphrag_bench():
             "description": (
                 "GraphRAG-Bench complex multi-constraint graph queries across medical, novel, and algorithmic domains"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -508,7 +515,7 @@ def fetch_wildgraphbench():
             "description": (
                 "WildGraphBench multi-fact aggregation over complex semi-structured Wikipedia graph topologies"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -549,7 +556,7 @@ def fetch_squality():
             "description": (
                 "SQuALITY query-focused summarization over short stories with 4 multi-perspective reference summaries"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -582,7 +589,7 @@ def fetch_zero_scrolls_and_qmsum():
             "source": "https://huggingface.co/datasets/tau/zero_scrolls",
             "citation": "19, 27, 38",
             "description": "ZeroSCROLLS benchmark suite including QMSum, SQuALITY, and GovReport",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -607,7 +614,7 @@ def fetch_zero_scrolls_and_qmsum():
             "description": (
                 "QMSum query-based multi-domain meeting summarization (academic, corporate, political meetings)"
             ),
-            "path": str(qmsum_target.relative_to(BASE_DIR)),
+            "path": _manifest_path(qmsum_target),
             "size_bytes": qmsum_size,
             "size_human": format_size(qmsum_size),
         }
@@ -635,7 +642,7 @@ def fetch_govreport():
             "description": (
                 "GovReport long institutional policy and legislative reports paired with executive summaries"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -661,7 +668,7 @@ def fetch_multinews():
             "source": "https://huggingface.co/datasets/alexfabbri/multi_news",
             "citation": "19, 41",
             "description": "Multi-News multi-document news summarization corpus",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -702,7 +709,7 @@ def fetch_microsoft_graphrag():
             "description": (
                 "Official Microsoft GraphRAG benchmarks: Kevin Scott Podcasts, MSFT Earnings Calls, Filtered HotPotQA"
             ),
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }
@@ -741,7 +748,7 @@ def fetch_text2cypher():
             "source": "https://huggingface.co/datasets/neo4j/text2cypher",
             "citation": "33, 54",
             "description": "neo4j/text2cypher dataset for natural language query to Cypher property graph traversal",
-            "path": str(target.relative_to(BASE_DIR)),
+            "path": _manifest_path(target),
             "size_bytes": size,
             "size_human": format_size(size),
         }

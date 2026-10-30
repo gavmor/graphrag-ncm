@@ -548,3 +548,38 @@ model's 27% floor. Single seed, n=60 per cell, an 11M model. What remains untrie
 model near the paper's conditional-generator scale trained on enough GraphRAG-shaped data.
 A matched-non-embedding-parameter autoregressive control and early stopping were tried later;
 both remained at the same failure floor (see `findings.md` addendum).
+
+
+## 13. Paper-scale entity and relationship extraction (REBEL): 92.8M NCM vs matched AR control
+
+**46. Setup.** Task: Wikipedia text (prefix <= 512 tokens) -> GraphRAG delimiter tuples of entities and
+relations (`("entity"<|>NAME<|>TYPE<|>DESC)##("relationship"<|>SRC<|>TGT<|>PRED<|>WEIGHT)##<|COMPLETE|>`,
+target <= 128 tokens).
+- **Corpus:** 100,000 REBEL examples, filtering out any articles present in DocRED or Re-DocRED dev/test.
+- **VQ Tokenizer:** 6 manual levels [4, 8, 16, 32, 64, 128], uniform 512 codes/level, context length 128.
+  Trained for 6,000 steps with batch size 32 (192k exposures), achieving 92.2% non-pad token accuracy and
+  validation loss 0.3605.
+- **NCM Generator:** 13 layers, width 768, 12 heads, tied heads to codebook, prefix 512 (92.84M parameters).
+  Trained for 2,500 steps (batch size 16), validation loss 3.0799.
+- **Autoregressive Control:** 13 layers, width 768, 12 heads, tied GPT-2 embeddings, causal attention
+  (92.14M non-embedding parameters, 131.27M total). Trained for 2,500 steps (batch size 16), validation loss 0.6112.
+
+**47. Results across disjoint validation and gold transfer sets:**
+
+| Dataset | Model | Valid rate | Entity F1 | Typed Entity F1 | Relation F1 |
+|---|---|---:|---:|---:|---:|
+| **REBEL validation** (held-out articles) | **NCM (92.8M)** | 79.0% | 0.53% | 0.53% | 0.00% |
+| | **AR control (92.1M)** | **100.0%** | **9.50%** | **9.50%** | **0.97%** |
+| **Re-DocRED dev** (gold transfer) | **NCM (92.8M)** | 59.0% | 0.14% | 0.00% | 0.00% |
+| | **AR control (92.1M)** | **100.0%** | **1.33%** | 0.00% | 0.00% |
+| **DocRED dev** (gold transfer) | **NCM (92.8M)** | 71.0% | 0.00% | 0.00% | 0.00% |
+| | **AR control (92.1M)** | **100.0%** | **1.59%** | 0.00% | 0.16% |
+
+**48. Analysis.**
+1. The AR model demonstrates clear in-context copying ability, achieving 9.5% Entity F1 and 100% syntactic
+   validity on held-out REBEL articles, and transferring to gold DocRED/Re-DocRED benchmarks (1.3-1.6% Entity F1).
+2. The equal-size NCM model struggles to copy entity strings: Entity F1 remains at 0.53% on REBEL and near
+   0% on gold transfer. It exhibits delimiter corruption (59-79% validity) and hallucinated entity tokens.
+3. This confirms that the extraction failure observed at 1-11M parameters was not solely a lack of data volume
+   or model capacity: even at ~92M parameters on 100k training pairs, parallel coarse-to-fine discrete latent
+   generation without a dedicated span-copy mechanism cannot faithfully perform open-vocabulary entity extraction.

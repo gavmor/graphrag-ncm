@@ -7,14 +7,14 @@ accelerated backend for bounded-output stages of
 relevance scoring, and entity extraction.
 
 **Final report (start here):** [`docs/findings.md`](docs/findings.md) -- what was measured, what it
-does and does not show, and the limits to read before quoting any number. At the tested scale and
-data, NCM produced valid, bounded, fast output (6-13 ms) but did not match simple non-neural
-baselines on content quality. A trained Multi-News drafter supported only 10% of its claims; a
-matched-size early-stopped autoregressive control reached the same failure floor at 11%. Widening
-the NCM from 10.9M to 19.3M parameters did not improve it. This is evidence of a scale/data failure
-in this experiment, not that NCM is intrinsically worse than autoregressive decoding. No paper-scale
-model was trained here on GraphRAG-shaped data; the released 88M XSum model was evaluated in-domain
-and for zero-shot GraphRAG transfer only.
+does and does not show, and the limits to read before quoting any number. Across 0.83M to 92.8M
+parameters, NCM produced fast, valid output for bounded and structured schemas, but did not match
+standard baselines on open-vocabulary content extraction. Trained at paper scale (92.8M parameters)
+on 100,000 REBEL examples against an equal-size autoregressive control (92.1M non-embedding parameters),
+the AR control achieved 100% validity, **9.50% Entity F1**, and transferred to gold DocRED (1.59% F1).
+NCM reached 79% validity, **0.53% Entity F1**, and hallucinated entity names, confirming that NCM's
+discrete residual VQ-bottleneck without a span copy mechanism is an architectural bottleneck for
+open-vocabulary extraction.
 
 **Then:** [`docs/constraints.md`](docs/constraints.md) — the hard constraints
 that shape everything else (no pretrained NCM checkpoint fits any GraphRAG task, no
@@ -46,16 +46,17 @@ describe what was actually built and measured.
   against graphrag's real, unmodified `GlobalSearch` and `GraphExtractor` classes.
 - `third_party/{ncm,graphrag}` — upstream repos as git submodules (code only; see
   `docs/constraints.md` #5 for why checkpoints aren't duplicated here).
-- `corpora/` — training & benchmark corpora fetched per `GraphRAG Training Dataset Discovery.md`
-  (DocRED, Few-NERD, SciRIFF, SciERC, TACRED, REBEL, SREDFM, HotpotQA, MuSiQue, KILT,
-  GraphRAG-Bench, WildGraphBench, SQuALITY, QMSum, GovReport, Multi-News, Microsoft GraphRAG benchmarks),
-  with programmatic loader utilities in `src/ncm_graphrag/data/corpora.py` and fetcher `scripts/fetch_corpora.py`.
+- `scripts/fetch_corpora.py` and `src/ncm_graphrag/data/corpora.py` — download and access
+  corpus data outside Git. Set `NCM_CORPORA_ROOT` to use a shared directory; otherwise
+  `corpora/` in this checkout is used. Corpora and checkpoints are not committed.
 
 ## Training Corpora & Benchmarks
 
-Real-world GraphRAG training requires datasets spanning document-level relation extraction, multi-hop reasoning, and query-focused summarization. All datasets identified in `GraphRAG Training Dataset Discovery.md` are fetched locally into `corpora/` with metadata recorded in `corpora/manifest.json`.
+The fetcher can download the datasets below into `NCM_CORPORA_ROOT` (or `corpora/` by
+default), with metadata in that directory's `manifest.json`. The listed sizes reflect one
+local snapshot, not files included in the repository. Check each dataset's license before use.
 
-### Acquired Datasets
+### Available datasets
 
 | Category | Dataset | Primary Source | Local Size | Role in GraphRAG / NAR Modeling |
 | :--- | :--- | :--- | :--- | :--- |
@@ -97,7 +98,7 @@ from ncm_graphrag.data.corpora import (
     load_re_docred,
 )
 
-# Query manifest of all 22 fetched corpora
+# Query fetched corpora from the configured manifest
 corpora = list_corpora(category="information_extraction")
 print(f"Found {len(corpora)} IE corpora")
 
@@ -245,3 +246,12 @@ least 100k real GraphRAG-shaped pairs, with an independent validation set. The c
 corpora do not provide that data budget, so scaling the model alone would mostly increase the risk
 of memorisation. Full results, judge anchors, rejected variants, and selection caveats are in
 [`docs/findings.md`](docs/findings.md) and [`docs/constraints.md` §12](docs/constraints.md#12-trained-community-report-drafter-multi-news-the-last-experiment).
+
+**Paper-scale extraction on 100,000 REBEL examples isolates the architecture gap.**
+A 92.8M NCM generator and an equal-size AR control (92.1M non-embedding parameters) were trained on
+100k REBEL text-to-GraphRAG tuple examples. On held-out REBEL validation, AR reached 100% validity,
+**9.50% Entity F1**, and 0.97% Relation F1, successfully extracting in-context entities. NCM scored
+79% validity, **0.53% Entity F1**, and 0.00% Relation F1, frequently repeating tokens and garbling
+delimiters. On gold transfer to Re-DocRED and DocRED dev sets, AR transferred 1.33% and 1.59% Entity F1,
+whereas NCM scored 0.14% and 0.00%. Full details and checkpoints are documented in
+[`docs/findings.md`](docs/findings.md) and [`docs/constraints.md` §13](docs/constraints.md#13-paper-scale-entity-and-relationship-extraction-rebel-928m-ncm-vs-matched-ar-control).

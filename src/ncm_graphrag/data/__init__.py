@@ -1,5 +1,4 @@
 from ncm_graphrag.data.corpora import (
-    CORPORA_ROOT,
     get_corpora_root,
     get_corpus_path,
     list_corpora,
@@ -12,7 +11,6 @@ from ncm_graphrag.data.corpora import (
 )
 
 __all__ = [
-    "CORPORA_ROOT",
     "get_corpora_root",
     "get_corpus_path",
     "list_corpora",

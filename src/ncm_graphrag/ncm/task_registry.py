@@ -21,6 +21,7 @@ from ncm_graphrag.data import (
     map_stage_hotpot,
     map_stage_real,
     real_extraction,
+    rebel_extraction,
     relation_tacred,
     report_multinews,
 )
@@ -122,6 +123,19 @@ TASKS: dict[str, TaskSpec] = {
         generator_n_examples=40000,
         benchmark_examples=report_multinews.benchmark_examples,
         metric="draft_rouge",
+    ),
+    "rebel_extraction": TaskSpec(
+        generate_examples=rebel_extraction.generate_examples,
+        build_tokenizer_cfg=config.build_rebel_tokenizer_cfg,
+        build_model_cfg=config.build_rebel_model_cfg,
+        build_generation_cfg=config.build_rebel_generation_cfg,
+        is_well_formed=rebel_extraction.is_well_formed,
+        tokenizer_steps=6000,
+        tokenizer_n_examples=50000,
+        generator_steps=12000,
+        generator_n_examples=200000,
+        benchmark_examples=rebel_extraction.benchmark_examples,
+        metric="graph_f1",
     ),
     "extraction": TaskSpec(
         generate_examples=extraction.generate_examples,

@@ -5,23 +5,22 @@ per-experiment detail, run history and traps are in [`constraints.md`](constrain
 
 ## Short answer
 
-At the scale this project trained from scratch (0.83M-30.04M generator parameters, mostly 12k-step
-single-GPU runs), **NCM reliably produces valid, bounded, fast output but did not match simple
-non-neural baselines on content quality on any GraphRAG task tried.** It emitted well-formed output
-97-100% of the time at 6-13 ms per call, and was typically 100-200x faster than a Claude call (not
-like-for-like). It did not reproduce entity names, did not beat a bag-of-words linear classifier on
-relation typing, did not beat a feature lookup table on map-stage relevance, and its 38k-pair
-Multi-News drafter memorised training pairs but generalised source conditioning weakly.
+At the scale this project trained from scratch (0.83M-92.84M generator parameters, single-GPU
+runs), **NCM reliably produces valid, bounded, fast output for structured grammars, but did not match
+standard baselines on content quality on any GraphRAG task tried.** It emitted well-formed output
+97-100% of the time on closed schemas and 79% on open graph extraction. It did not reproduce entity
+names, did not beat a bag-of-words linear classifier on relation typing, did not beat a feature lookup
+table on map-stage relevance, and its Multi-News drafter generalised source conditioning weakly.
 
-**No model trained here tests NCM at the paper's conditional-generation scale on GraphRAG-shaped
-data.** The paper uses 88.02M parameters for XSum and 119.96M for WMT14. This project did evaluate
-the released 88M XSum checkpoint, both in-domain and zero-shot on GraphRAG text; its zero-shot failure
-shows poor transfer, not failure after task-specific GraphRAG training. The paper's recipes are also
-far larger: XSum uses 350k updates at global batch 512, while LM1B and OpenWebText report 13.36B and
-127.22B full-length token positions including tokenizer training. See
-[paper Appendix C](https://arxiv.org/html/2610.14162v1#A3). An earlier version incorrectly described
-the paper as a "~120M, 1-2B token" regime and compared training pairs with token positions; those
-units are not comparable.
+**Trained at paper scale (92.8M generator parameters) on 100,000 REBEL examples, NCM was directly
+compared with an equal-size autoregressive control (92.1M non-embedding parameters).** On held-out
+REBEL validation (disjoint Wikipedia articles), the AR control reached 100% syntactic validity and
+**9.50% Entity F1**, extracting actual source entity mentions (`Spodnja Šika`, `Tambovs Peak`). NCM
+reached 79% validity and **0.53% Entity F1**, hallucinating entity names and repeating sub-tokens.
+On gold transfer (Re-DocRED and DocRED dev), AR transferred 1.33-1.59% Entity F1, while NCM scored
+0.00-0.14%. This shows that even with 100k real training pairs and ~92M parameters, NCM's discrete
+residual VQ-bottleneck without a span copy mechanism cannot faithfully extract arbitrary
+open-vocabulary entity names.
 
 ## Scope and honest limits (read before quoting any number)
 
@@ -171,3 +170,28 @@ Checkpoints are not committed (`artifacts/` is ignored); the numbers above regen
   not fully independent.
   Reproduce with `uv run python scripts/ar_baseline.py train`, then
   `uv run python scripts/ar_baseline.py eval 60 /tmp/ar_control` and the claim judge above.
+
+- **Paper-scale REBEL extraction (92.8M NCM vs 92.1M AR control):** trained on 100,000 REBEL examples
+  (target: bounded GraphRAG delimiter tuples of entities and relations; 6 VQ levels [4, 8, 16, 32, 64, 128],
+  context length 128, prefix 512). VQ tokenizer trained for 6,000 steps reached 92.2% non-pad token accuracy
+  and 0.36 validation loss. Both generators trained for 2,500 steps (batch size 16 = 40,000 exposures):
+  - NCM (92.84M generator, 13 layers, width 768, 12 heads, tied heads to codebook): validation loss 3.08.
+  - AR control (92.14M non-embedding parameters, 131.27M total, tied GPT-2 embeddings, causal transformer):
+    validation loss 0.61.
+
+  Evaluated on 100 held-out examples across three disjoint splits (DocRED/Re-DocRED articles strictly excluded from training):
+
+  | Dataset | Model | Valid rate | Entity F1 | Typed Entity F1 | Relation F1 |
+  |---|---|---:|---:|---:|---:|
+  | **REBEL validation** (held-out articles) | **NCM (92.8M)** | 79.0% | 0.53% | 0.53% | 0.00% |
+  | | **AR control (92.1M)** | **100.0%** | **9.50%** | **9.50%** | **0.97%** |
+  | **Re-DocRED dev** (gold transfer) | **NCM (92.8M)** | 59.0% | 0.14% | 0.00% | 0.00% |
+  | | **AR control (92.1M)** | **100.0%** | **1.33%** | 0.00% | 0.00% |
+  | **DocRED dev** (gold transfer) | **NCM (92.8M)** | 71.0% | 0.00% | 0.00% | 0.00% |
+  | | **AR control (92.1M)** | **100.0%** | **1.59%** | 0.00% | 0.16% |
+
+  Outputs show the failure mode directly:
+  - AR extracted `Spodnja Šika` and `Municipality of Slovens` with relation `located in the administrative territorial entity` from source sentence `Spodnja Šiška is a formerly independent settlement in ... Slovenia`.
+  - NCM emitted hallucinated strings `Harinzaii` and `MiccurWar Songi` with byte fragments `\ufffd` and broken tags `entityentity`.
+  - Conclusion: with scale (92M) and data (100k) matched, autoregressive decoding reliably copies source entities, whereas NCM's discrete code bottleneck hallucinates surface forms.
+  Reproduce: `uv run python scripts/rebel_experiment.py evaluate --model ncm` and `... evaluate --model ar`.

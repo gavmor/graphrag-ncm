@@ -6,5 +6,7 @@ set -euo pipefail
 # The corpora are fetched into a sibling worktree, so point at them explicitly.
 export NCM_TASK="${NCM_TASK:-report_multinews}"
 export NCM_CORPORA_ROOT="${NCM_CORPORA_ROOT:-/home/user/Desktop/gavmor/ncm-graphrag-worktrees/training-corpora/corpora}"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
 exec uv run python -m ncm_graphrag.benchmark
