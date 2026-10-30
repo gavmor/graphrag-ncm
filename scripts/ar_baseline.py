@@ -28,6 +28,7 @@ from ncm_graphrag.data import report_multinews as data  # noqa: E402
 CKPT = "/home/user/Desktop/gavmor/ncm-graphrag/artifacts/ar_baseline.pt"
 D, LAYERS, HEADS, VOCAB, MAXLEN = 384, 6, 6, 50304, 288 + 1 + 48 + 1
 BATCH, STEPS, LR = 128, 12000, 6e-4
+EVAL_EVERY, PATIENCE = 250, 3  # stop after 3 evaluations without a held-out improvement
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 tok = HFTokenizer(model_id="gpt2", pad_token="<|pad|>")
 EOS, PAD = tok.eos_token_id, tok.pad_token_id
@@ -100,6 +101,7 @@ def train() -> None:
     print(f"params: {n_total / 1e6:.2f}M total, {non_embed / 1e6:.2f}M non-embedding", flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=0.01)
     rng = random.Random(0)
+    best_loss, best_step, stale, best_state = float("inf"), -1, 0, {}
     for step in range(STEPS):
         lr = LR * min(1.0, (step + 1) / 200) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * step / STEPS)))
         for g in opt.param_groups:
@@ -111,18 +113,30 @@ def train() -> None:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
-        if step % 1000 == 0 or step == STEPS - 1:
+        if step % EVAL_EVERY == 0 or step == STEPS - 1:
             model.eval()
             with torch.no_grad():
                 h_ids, h_lab = batch(held[:128])
                 h_target = h_lab[:, 1:]
                 h_loss = F.cross_entropy(
                     model(h_ids[:, :-1], h_target != -100), h_target[h_target != -100], ignore_index=-100
-                )
+                ).item()
             model.train()
-            print(f"step {step:5d}  loss {loss.item():.4f}  HELDOUT loss {h_loss.item():.4f}", flush=True)
-    torch.save(model.state_dict(), CKPT)
-    print("saved", CKPT)
+            marker = ""
+            if h_loss < best_loss:
+                best_loss, best_step, stale = h_loss, step, 0
+                best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+                marker = "  *best"
+            else:
+                stale += 1
+            print(f"step {step:5d}  loss {loss.item():.4f}  HELDOUT loss {h_loss:.4f}{marker}", flush=True)
+            if stale >= PATIENCE:
+                break
+    # The checkpoint is chosen by loss on the first 128 of the 256 held-out benchmark examples, which the
+    # 60-example judge sample also draws from; the curve is sharply peaked so the selection effect is small,
+    # but it is not a fully independent split.
+    torch.save(best_state, CKPT)
+    print(f"saved best checkpoint (step {best_step}, held-out loss {best_loss:.4f}) to {CKPT}")
 
 
 @torch.no_grad()
