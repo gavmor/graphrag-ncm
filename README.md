@@ -46,6 +46,90 @@ describe what was actually built and measured.
   against graphrag's real, unmodified `GlobalSearch` and `GraphExtractor` classes.
 - `third_party/{ncm,graphrag}` — upstream repos as git submodules (code only; see
   `docs/constraints.md` #5 for why checkpoints aren't duplicated here).
+- `corpora/` — training & benchmark corpora fetched per `GraphRAG Training Dataset Discovery.md`
+  (DocRED, Few-NERD, SciRIFF, SciERC, TACRED, REBEL, SREDFM, HotpotQA, MuSiQue, KILT,
+  GraphRAG-Bench, WildGraphBench, SQuALITY, QMSum, GovReport, Multi-News, Microsoft GraphRAG benchmarks),
+  with programmatic loader utilities in `src/ncm_graphrag/data/corpora.py` and fetcher `scripts/fetch_corpora.py`.
+
+## Training Corpora & Benchmarks
+
+Real-world GraphRAG training requires datasets spanning document-level relation extraction, multi-hop reasoning, and query-focused summarization. All datasets identified in `GraphRAG Training Dataset Discovery.md` are fetched locally into `corpora/` with metadata recorded in `corpora/manifest.json`.
+
+### Acquired Datasets
+
+| Category | Dataset | Primary Source | Local Size | Role in GraphRAG / NAR Modeling |
+| :--- | :--- | :--- | :--- | :--- |
+| **Information Extraction** | DocRED | `thunlp/docred` | 91.2 MB | Multi-sentence document-level relation extraction (96 Wikidata relations) |
+| | Re-DocRED | `tonytan48/Re-DocRED` | 23.9 MB | Re-annotated DocRED resolving false negatives; dense relational supervision |
+| | Few-NERD | `DFKI-SLT/few-nerd` | 60.7 MB | Fine-grained entity typing (8 coarse, 66 fine types over 188.2k sentences) |
+| | SciRIFF | `allenai/SciRIFF` | 1.33 GB | Scientific literature instruction-tuning and claim extraction |
+| | SciERC | UW / AllenAI (`zj88zj/SCIERC`) | 1.40 GB | Scientific abstracts with 6 entity types and 7 directional relations |
+| | TACRED | `DFKI-SLT/tacred` & `xiaobendanyn/tacred` | 44.1 MB | 106k sentence relation extraction instances across 41 relation classes |
+| | Re-TACRED | `gstoica27/Re-TACRED` | 4.7 MB | Relabeled TACRED resolving labeling inconsistencies and error drift |
+| | REBEL | `Babelscape/rebel-dataset` | 11.1 GB | End-to-end relation extraction seq2seq dataset (triples from Wikipedia) |
+| | SREDFM | `Babelscape/sredfm` | 119.0 MB | Silver relation extraction evaluation splits for filtered Wikidata relations |
+| **Multi-Hop Reasoning** | HotpotQA | `hotpotqa/hotpot_qa` | 712.1 MB | Multi-hop reasoning with sentence-level supporting fact supervision |
+| | MuSiQue | `dgslibisey/MuSiQue` | 258.9 MB | Multi-hop QA with decomposed hops and up to 20 distractor paragraphs |
+| | KILT Tasks | `facebook/kilt_tasks` | 1.00 GB | 11 standardized knowledge-intensive benchmarks with Wikipedia provenance |
+| | KILT Wikipedia | `facebook/kilt_wikipedia` | 17.4 KB | Schema definition and knowledge source snapshot loader script |
+| | GraphRAG-Bench | `GraphRAG-Bench/GraphRAG-Bench` | 14.0 MB | Medical, algorithmic, and novel multi-constraint graph reasoning benchmark |
+| | WildGraphBench | `Bstwpy/WildGraphBench` | 211.1 MB | Complex semi-structured Wikipedia graph topology multi-fact benchmark |
+| **Query-Focused Summarization** | SQuALITY | `GEM/squality` | 104.4 KB | Multi-perspective story summarization (4 human reference summaries per query) |
+| | ZeroSCROLLS | `tau/zero_scrolls` | 211.7 MB | Long-text evaluation suite (contains QMSum, SQuALITY, GovReport, MuSiQue) |
+| | QMSum (Cleaned) | `pszemraj/qmsum-cleaned` | 46.8 MB | Query-based multi-domain meeting summarization (academic, corporate, policy) |
+| | GovReport | `ccdv/govreport-summarization` | 483.2 MB | Long institutional legislative and policy reports paired with executive summaries |
+| | Multi-News | `alexfabbri/multi_news` | 721.8 MB | Multi-document news synthesis into community-style narrative conclusions |
+| | Microsoft GraphRAG | `microsoft/graphrag-benchmarking-datasets` | 66.3 MB | Official benchmarks: Kevin Scott Podcasts (125 Qs), MSFT Earnings, Filtered HotPotQA (5,491 Qs) |
+| **Additional / Graph Traversal** | text2cypher | `neo4j/text2cypher` | 7.8 MB | Natural language questions paired with Cypher property graph query statements |
+
+### Programmatic Access in Python
+
+Load any corpus or query the manifest using `ncm_graphrag.data.corpora`:
+
+```python
+from ncm_graphrag.data.corpora import (
+    get_corpus_path,
+    list_corpora,
+    load_docred,
+    load_graphrag_bench,
+    load_microsoft_graphrag,
+    load_musique,
+    load_re_docred,
+)
+
+# Query manifest of all 22 fetched corpora
+corpora = list_corpora(category="information_extraction")
+print(f"Found {len(corpora)} IE corpora")
+
+# Direct path resolution
+hotpot_dir = get_corpus_path("hotpotqa")
+
+# Specialized dataset loaders
+docred_dev = load_docred("dev")
+re_docred_dev = load_re_docred("dev")
+musique_dev = load_musique("dev")
+graphrag_bench_med = load_graphrag_bench("medical")
+msft_podcasts = load_microsoft_graphrag("podcasts")
+msft_hotpot = load_microsoft_graphrag("hotpotqa")
+```
+
+### Fetching & Updating Corpora
+
+To re-fetch or selectively update datasets:
+
+```bash
+# Fetch everything
+uv run python scripts/fetch_corpora.py --all
+
+# Or fetch by category:
+uv run python scripts/fetch_corpora.py --category ie
+uv run python scripts/fetch_corpora.py --category multi_hop
+uv run python scripts/fetch_corpora.py --category summarization
+uv run python scripts/fetch_corpora.py --category additional
+
+# Or fetch an individual dataset:
+uv run python scripts/fetch_corpora.py --dataset microsoft_graphrag
+```
 
 ## Two environments, on purpose
 
