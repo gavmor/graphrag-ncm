@@ -409,6 +409,10 @@ def build_report_multinews_model_cfg() -> DictConfig:
     cfg.context_length = REPORT_CONTEXT_LENGTH
     # NCM_DROPOUT overrides the generator dropout for regularisation experiments (the drafter memorises).
     cfg.dropout = float(os.environ.get("NCM_DROPOUT", cfg.dropout))
+    # Width scaling is opt-in; keep head dimension 64 for the drafter capacity probe.
+    if os.environ.get("NCM_REPORT_WIDTH"):
+        cfg.n_embd = int(os.environ["NCM_REPORT_WIDTH"])
+        cfg.n_head = cfg.n_embd // 64
     cfg.save_path = str(REPORT_MULTINEWS_ARTIFACT_DIR / "generator.pt")
     return cfg
 

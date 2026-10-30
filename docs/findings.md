@@ -122,6 +122,10 @@ Checkpoints are not committed (`artifacts/` is ignored); the numbers above regen
 - **Further drafter attempts, all judge-controlled and none adopted** (`constraints.md` §43-§45):
   dropout 0.3 (16% claims supported vs 10% baseline, within noise), decode penalties (13%), grounded
   training targets (14%). Fluency stayed 1.0 throughout.
+- **Early stopping:** dropout 0.3 at 6,001 updates reached held-out teacher-forced loss 3.105.
+  On 60 held-out examples the judge found 10% supported claims, 5% fully faithful and fluency 1.0/5,
+  the same rounded figures as the baseline. Lead-1 and mismatch anchors scored 97% and 0% supported.
+  This single-seed result does not show a faithfulness gain; ROUGE-1 was 3.27 vs 4.14 baseline.
 - **Where the failure shows up:** free-running output has 17.3% adjacent repeated words vs 0.1% in
   human references and 0.3% in the tokenizer's own reconstruction, so the degeneration is in generation,
   not the tokenizer. Untested explanation: parallel per-position decoding.
