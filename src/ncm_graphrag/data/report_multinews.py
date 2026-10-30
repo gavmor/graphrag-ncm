@@ -100,11 +100,37 @@ def _example(raw_src: str, raw_tgt: str) -> DraftExample | None:
     return DraftExample(prefix_text=build_source(raw_src), target_text=target)
 
 
+def _grounded_examples(raw_src: str, raw_tgt: str, threshold: float, per_cluster: int) -> list[DraftExample]:
+    """Summary sentences (first 8) whose content words are >= `threshold` supported by the visible source.
+
+    The human first sentence is only 46% grounded in the lead-only source the model sees (35% across all
+    sentences), so default targets teach it to say things its source does not contain. This keeps only
+    sentences the source actually supports, from anywhere in the summary.
+    """
+    source = build_source(raw_src)
+    text = _norm(raw_tgt).lstrip("- ").strip()
+    out: list[DraftExample] = []
+    for sent in [x for x in re.split(r"(?<=[.!?])\s+", text) if len(x.split()) >= 5][:8]:
+        if len(_pre_tok().encode(sent)) + 1 > TARGET_TOKEN_BUDGET or grounding(sent, source) < threshold:
+            continue
+        out.append(DraftExample(prefix_text=source, target_text=sent))
+        if len(out) >= per_cluster:
+            break
+    return out
+
+
 def generate_examples(n: int, seed: int) -> list[DraftExample]:
+    """Training pool. NCM_TARGET_GROUNDING=<0-1> switches to grounded targets (default 0 = first sentence)."""
     rows = _read("train")
     random.Random(seed).shuffle(rows)
+    threshold = float(os.environ.get("NCM_TARGET_GROUNDING", "0"))
     out: list[DraftExample] = []
     for s, t in rows:
+        if threshold > 0:
+            out.extend(_grounded_examples(s, t, threshold, per_cluster=3))
+            if len(out) >= n:
+                return out[:n]
+            continue
         ex = _example(s, t)
         if ex:
             out.append(ex)
