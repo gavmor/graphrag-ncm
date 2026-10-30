@@ -104,6 +104,42 @@ def main() -> None:
     prefix_data, target_data = _build_dataset(task, model_cfg.prefix_len, tok_cfg.vqvae.context_length, pre_tok)
     n = prefix_data.shape[0]
 
+    # Optional held-out teacher-forced loss every NCM_EVAL_EVERY steps (off by default). Training loss
+    # alone cannot show memorisation: on the Multi-News drafter it fell to ~1.8 while held-out loss
+    # was ~3.9. Uses the task's benchmark examples (never trained on) and the same encoding path.
+    eval_every = int(os.environ.get("NCM_EVAL_EVERY", "0"))
+    heldout = None
+    if eval_every and task.benchmark_examples is not None:
+        import dataclasses
+
+        held = task.benchmark_examples()[:256]
+        fixed = dataclasses.replace(task, generate_examples=lambda n, s: held, generator_n_examples=len(held))
+        h_pre, h_tgt = _build_dataset(fixed, model_cfg.prefix_len, tok_cfg.vqvae.context_length, pre_tok)
+        heldout = (h_pre.to(device), h_tgt.to(device))
+
+    @torch.no_grad()
+    def heldout_loss(h_pre: torch.Tensor, h_tgt: torch.Tensor) -> tuple[float, float]:
+        net.eval()
+        total = correct = count = 0.0
+        for i in range(0, len(h_tgt), 64):
+            p, t = h_pre[i : i + 64], h_tgt[i : i + 64]
+            h_idx = vqvae.encode(t)
+            h_rest = vqvae.vq.idx_to_ncm_input(h_idx)
+            h_enc = vqvae.encoder
+            if bool(getattr(model_cfg, "contextual_prefix", False)) and len(getattr(h_enc, "blocks", [])) > 0:
+                h_z = h_enc.forward_nopos(p)[:, : model_cfg.prefix_len, :]
+            else:
+                h_z = h_enc.wte(p)[:, : model_cfg.prefix_len, :]
+            h_x = torch.cat([h_z, torch.cat([net.build_l0_query_input(len(p), dtype=h_rest.dtype), h_rest], 1)], 1)
+            h_mask = (p[:, : model_cfg.prefix_len] == pad_id) if TRAIN_PAD_MASK else None
+            h_logits = net(h_x, prefix_pad_mask=h_mask)
+            h_ce = F.cross_entropy(h_logits.reshape(-1, h_logits.shape[-1]), h_idx.reshape(-1), reduction="sum")
+            total += h_ce.item()
+            correct += (h_logits.argmax(-1) == h_idx).float().sum().item()
+            count += h_idx.numel()
+        net.train()
+        return total / count, correct / count
+
     opt = torch.optim.AdamW(net.parameters(), lr=LR, weight_decay=0.01)
 
     steps = int(os.environ.get("NCM_STEPS", str(task.generator_steps)))
@@ -148,6 +184,10 @@ def main() -> None:
         if step % 200 == 0 or step == steps - 1:
             acc = (logits.argmax(-1) == idx).float().mean().item()
             print(f"[{args.task}] step {step:5d}  loss {loss.item():.4f}  level_acc {acc:.4f}", flush=True)
+
+        if eval_every and (step % eval_every == 0 or step == steps - 1) and heldout is not None:
+            h_loss, h_acc = heldout_loss(*heldout)
+            print(f"[{args.task}] step {step:5d}  HELDOUT loss {h_loss:.4f}  acc {h_acc:.4f}", flush=True)
 
     os.makedirs(os.path.dirname(model_cfg.save_path), exist_ok=True)
     torch.save({"model": net.state_dict()}, model_cfg.save_path)

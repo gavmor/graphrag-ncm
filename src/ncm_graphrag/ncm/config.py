@@ -10,6 +10,7 @@ output and are not tuned beyond "trains and produces non-degenerate text" (see
 docs/architecture.md for the smoke-test results).
 """
 
+import os
 from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
@@ -406,6 +407,8 @@ def build_report_multinews_model_cfg() -> DictConfig:
     cfg = build_real_extraction_model_cfg()
     cfg.prefix_len = REPORT_PREFIX_LEN
     cfg.context_length = REPORT_CONTEXT_LENGTH
+    # NCM_DROPOUT overrides the generator dropout for regularisation experiments (the drafter memorises).
+    cfg.dropout = float(os.environ.get("NCM_DROPOUT", cfg.dropout))
     cfg.save_path = str(REPORT_MULTINEWS_ARTIFACT_DIR / "generator.pt")
     return cfg
 
