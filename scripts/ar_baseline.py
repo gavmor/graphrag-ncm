@@ -57,11 +57,18 @@ class GPT(nn.Module):
         self.blocks = nn.ModuleList(Block() for _ in range(LAYERS))
         self.ln = nn.LayerNorm(D)
 
-    def forward(self, ids: torch.Tensor) -> torch.Tensor:  # ty: ignore[invalid-mutable-override]
+    def forward(  # ty: ignore[invalid-mutable-override]
+        self, ids: torch.Tensor, select: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Logits for every position, or only where `select` is True (flattened): the full
+        (batch x length x 50k) logit tensor is ~9 GB at batch 128, and the loss needs the target tokens only."""
         x = self.wte(ids) + self.wpe(torch.arange(ids.shape[1], device=ids.device))
         for blk in self.blocks:
             x = blk(x)
-        return self.ln(x) @ self.wte.weight.T  # tied output head
+        x = self.ln(x)
+        if select is not None:
+            x = x[select]
+        return x @ self.wte.weight.T  # tied output head
 
 
 def encode(ex: "data.DraftExample") -> tuple[list[int], int]:
@@ -94,8 +101,8 @@ def train() -> None:
         for g in opt.param_groups:
             g["lr"] = lr
         ids, lab = batch([rows[rng.randrange(len(rows))] for _ in range(BATCH)])
-        logits = model(ids[:, :-1])
-        loss = F.cross_entropy(logits.reshape(-1, VOCAB), lab[:, 1:].reshape(-1), ignore_index=-100)
+        target = lab[:, 1:]
+        loss = F.cross_entropy(model(ids[:, :-1], target != -100), target[target != -100])
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -104,8 +111,10 @@ def train() -> None:
             model.eval()
             with torch.no_grad():
                 h_ids, h_lab = batch(held[:128])
-                h_logits = model(h_ids[:, :-1])
-                h_loss = F.cross_entropy(h_logits.reshape(-1, VOCAB), h_lab[:, 1:].reshape(-1), ignore_index=-100)
+                h_target = h_lab[:, 1:]
+                h_loss = F.cross_entropy(
+                    model(h_ids[:, :-1], h_target != -100), h_target[h_target != -100], ignore_index=-100
+                )
             model.train()
             print(f"step {step:5d}  loss {loss.item():.4f}  HELDOUT loss {h_loss.item():.4f}", flush=True)
     torch.save(model.state_dict(), CKPT)
