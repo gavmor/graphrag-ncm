@@ -506,3 +506,38 @@ loss improved without a matching generation gain on this project. Decode penalti
 adjacency 3,3,0.6, the settings the released free-text checkpoints use) did not help either: outputs
 still repeat tokens (`North North Korea has North`) because the repetition originates in the latent
 codes, while the penalties act only on the final token pick. Single seed, n=60 per cell.
+
+**44. Cleaner supervision does not help, and the shared failure is repetition in generation.**
+`NCM_TARGET_GROUNDING=0.6` trains on any summary sentence (first 8, up to 3 per cluster) whose content
+words are >=60% present in the visible lead-only source: 42,552 pairs from 25,686 sources, targets 75%
+grounded on average (first sentences: 46%), 20.6 words, many direct quotes; tokenizer retrained.
+
+| | ROUGE-1 | grounding | entity/number | judge (n=60): supported / fully faithful / fluency |
+|---|---|---|---|---|
+| baseline, first-sentence targets | 4.14 | 26.3 | 46.5 | 10% / 5% / 1.0 |
+| grounded targets | 2.68* | 30.9 | 50.3 | 14% / 3% / 1.0 |
+
+*Lower partly by construction: the references are first sentences and the targets no longer are.
+No judge-visible gain. Held-out teacher-forced loss bottomed at 2.81 around step 5k, then rose.
+
+**Every drafter variant has fluency 1.0 and degenerate, repetitive output**, so this section measures it.
+Adjacent repeated words and type/token ratio over 200 held-out examples (baseline checkpoint):
+
+| text | adjacent repeated words | type/token ratio |
+|---|---|---|
+| human references | 0.1% | 93.5 |
+| tokenizer reconstruction of those references | 0.3% | 94.0 |
+| NCM free-running output | **17.3%** | **77.2** |
+
+The VQ-VAE reproduces fluent text, so the degeneration arises in generation. A plausible cause (not
+tested) is that all positions in a level are predicted in parallel from the same conditioning, so
+neighbouring positions choose the same likely token, the usual non-autoregressive repetition problem.
+Decode-time frequency/adjacency penalties did not repair it (§43), consistent with the repetition
+being in the latent codes rather than the final token pick.
+
+**45. Status of the drafter question.** Tried: bidirectional prefix encoder, condition dropout with
+guidance at four scales, dropout 0.3, decode penalties, grounded targets. None moves the blind judge
+outside noise (supported 9-16%, fully faithful 2-7%, fluency 1.0), all at or below the released XSum
+model's 27% floor. Single seed, n=60 per cell, an 11M model. What was not tried: a model near the
+paper's scale, an autoregressive baseline at equal size (which would show whether the gap is NCM
+or just scale and data), or early stopping at the held-out minimum.

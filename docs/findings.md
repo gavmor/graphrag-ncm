@@ -112,3 +112,18 @@ score with `NCM_TASK=T bash autoresearch.sh`. Faithfulness: `scripts/judge_draft
 Training knobs: `NCM_STEPS`, `NCM_BATCH_SIZE`, `NCM_LR`, `NCM_SEED`, `NCM_NA_FRACTION`,
 `NCM_COND_DROP`; decode knob `NCM_CFG_SCALE` (valid only for a model trained with `NCM_COND_DROP>0`).
 Checkpoints are not committed (`artifacts/` is ignored); the numbers above regenerate from the scripts.
+
+## Addendum (after the first publication of this report)
+
+- **Correction:** item 6 originally said the drafter "does not condition on the source" and "is not
+  memorising". Teacher-forced loss shows it **memorises** (in-sample 1.50 with the correct prefix vs 2.46
+  shuffled; held-out 3.88 vs 4.01). See `constraints.md` §42. The main conclusion (no content-quality
+  advantage at this scale) is unchanged.
+- **Further drafter attempts, all judge-controlled and none adopted** (`constraints.md` §43-§45):
+  dropout 0.3 (16% claims supported vs 10% baseline, within noise), decode penalties (13%), grounded
+  training targets (14%). Fluency stayed 1.0 throughout.
+- **Where the failure shows up:** free-running output has 17.3% adjacent repeated words vs 0.1% in
+  human references and 0.3% in the tokenizer's own reconstruction, so the degeneration is in generation,
+  not the tokenizer. Untested explanation: parallel per-position decoding.
+- **Not tested, and what would test it:** an autoregressive model of equal size and data on the same
+  task. That would separate "NCM is worse" from "11M parameters on 38k pairs is too little for anything".
