@@ -125,5 +125,14 @@ Checkpoints are not committed (`artifacts/` is ignored); the numbers above regen
 - **Where the failure shows up:** free-running output has 17.3% adjacent repeated words vs 0.1% in
   human references and 0.3% in the tokenizer's own reconstruction, so the degeneration is in generation,
   not the tokenizer. Untested explanation: parallel per-position decoding.
-- **Not tested, and what would test it:** an autoregressive model of equal size and data on the same
-  task. That would separate "NCM is worse" from "11M parameters on 38k pairs is too little for anything".
+- **Autoregressive control:** a decoder-only transformer trained on the same Multi-News pairs for
+  12,000 batches of 128 has 10.65M non-embedding parameters (NCM: 10.89M); its total is 30.09M,
+  including tied token embeddings, so total capacity and compute are not matched. On the same 400
+  validation examples, AR ROUGE-1 was 6.15 vs NCM's 4.14. On 60 sources, the blind judge scored AR
+  5% claims supported, 0% fully faithful, fluency 1.1/5; NCM's earlier baseline scored 10%, 5%, 1.0/5.
+  Lead-1 and wrong-source anchors scored 99% and 0% supported in the AR evaluation. These small
+  samples do not establish a significant difference. AR held-out loss rose from 5.36 at step 1,000
+  to 11.31 at step 11,999 while training loss fell to 0.054: the final checkpoint overfit, and an
+  early-stopped AR control was not evaluated. The result does not isolate architecture from training.
+  Reproduce with `uv run python scripts/ar_baseline.py train`, then
+  `uv run python scripts/ar_baseline.py eval 60 /tmp/ar_control` and the claim judge above.
