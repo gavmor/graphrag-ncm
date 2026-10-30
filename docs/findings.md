@@ -147,6 +147,17 @@ Checkpoints are not committed (`artifacts/` is ignored); the numbers above regen
   Lead-1 and wrong-source anchors scored 99% and 0% supported in the AR evaluation. These small
   samples do not establish a significant difference. AR held-out loss rose from 5.36 at step 1,000
   to 11.31 at step 11,999 while training loss fell to 0.054: the final checkpoint overfit, and an
-  early-stopped AR control was not evaluated. The result does not isolate architecture from training.
+  early-stopped AR control was not evaluated here (see next bullet). The overfit result alone does not isolate
+  architecture from training.
+- **Autoregressive control, early-stopped:** same model, checkpoint chosen at the held-out loss minimum
+  (step 1,000, loss 5.357; patience 3 evaluations every 250 steps). ROUGE-1 5.55, grounding 40.5, entity/number
+  grounding 69.5. Blind judge n=60: **11% claims supported, 2% fully faithful, fluency 1.1/5** (anchors 97% / 0%),
+  against 10% / 5% / 1.0 for the NCM baseline: indistinguishable (judge-only noise is about 4 points). Greedy AR
+  output loops (`in the first time in the first time ...`) and copies source fragments (high grounding), so it
+  is also unusable. Read together with the overfit run, an equal-size autoregressive model fails the same way
+  on this data (38k pairs, ~11M non-embedding parameters), which supports "too little scale/data for this task"
+  over "the NCM is specifically worse". It does not show the NCM is better. The checkpoint was selected on
+  loss over 128 of the held-out benchmark examples that the judge sample also draws from, so the selection is
+  not fully independent.
   Reproduce with `uv run python scripts/ar_baseline.py train`, then
   `uv run python scripts/ar_baseline.py eval 60 /tmp/ar_control` and the claim judge above.
