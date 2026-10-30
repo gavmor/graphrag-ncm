@@ -7,9 +7,13 @@ accelerated backend for bounded-output stages of
 relevance scoring, and entity extraction.
 
 **Final report (start here):** [`docs/findings.md`](docs/findings.md) -- what was measured, what it
-does and does not show, and the limits to read before quoting any number. In short: at 1-11M
-parameters NCM gave valid, bounded, fast output (6-13 ms) but did not match simple non-neural baselines
-on content quality on any GraphRAG task tried; none of this tests the paper's ~120M-parameter regime.
+does and does not show, and the limits to read before quoting any number. At the tested scale and
+data, NCM produced valid, bounded, fast output (6-13 ms) but did not match simple non-neural
+baselines on content quality. A trained Multi-News drafter supported only 10% of its claims; a
+matched-size early-stopped autoregressive control reached the same failure floor at 11%. Widening
+the NCM from 10.9M to 19.3M parameters did not improve it. This is evidence of a scale/data failure
+in this experiment, not that NCM is intrinsically worse than autoregressive decoding, and it does
+not test the paper's ~120M-parameter regime.
 
 **Then:** [`docs/constraints.md`](docs/constraints.md) — the hard constraints
 that shape everything else (no pretrained NCM checkpoint fits any GraphRAG task, no
@@ -143,8 +147,16 @@ benchmark text (podcasts, earnings calls, Wikipedia) 3-8%: no better than a summ
 chunk (0-2%), against 88-94% for Claude. So the released XSum NCM does not transfer zero-shot, and the
 "NCM suits bounded summarisation" hypothesis is untested rather than supported. `docs/constraints.md` §11.
 
-Natural next slices following the same recipe: relationship extraction (decoupled
-from entity extraction, per the background doc's own suggestion), community-report
-generation, and — for extraction to become production-useful — either the ~120M-parameter
-regime the background doc prescribes or constrained decoding to source spans
-(`docs/constraints.md` §7 #18).
+**The trained community-report-style drafter also failed at this scale.** The baseline NCM scored
+ROUGE-1 4.14 versus 13.9 for lead-1; blind claim-level judging found 10% of claims supported, 5%
+fully faithful, and fluency 1.0/5. NCM variants remained at 9-16% supported, within the judge's
+observed 7-11% repeatability range on identical output. Widening the generator from 384 to 512
+(19.3M parameters) scored 9% / 3% / 1.0. A matched-size, early-stopped autoregressive control scored
+11% / 2% / 1.1 and also looped. At roughly 11M non-embedding parameters and 38k training pairs,
+neither architecture learned usable drafting; this does not establish an architectural winner.
+
+The remaining useful drafting experiment is a larger NCM and autoregressive control trained on at
+least 100k real GraphRAG-shaped pairs, with an independent validation set. The currently staged
+corpora do not provide that data budget, so scaling the model alone would mostly increase the risk
+of memorisation. Full results, judge anchors, rejected variants, and selection caveats are in
+[`docs/findings.md`](docs/findings.md) and [`docs/constraints.md` §12](docs/constraints.md#12-trained-community-report-drafter-multi-news-the-last-experiment).
