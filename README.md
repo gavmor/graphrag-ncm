@@ -6,7 +6,12 @@ accelerated backend for bounded-output stages of
 [microsoft/graphrag](https://github.com/microsoft/graphrag): Global Search map-stage
 relevance scoring, and entity extraction.
 
-**Start here:** [`docs/constraints.md`](docs/constraints.md) — the hard constraints
+**Final report (start here):** [`docs/findings.md`](docs/findings.md) -- what was measured, what it
+does and does not show, and the limits to read before quoting any number. In short: at 1-11M
+parameters NCM gave valid, bounded, fast output (6-13 ms) but did not match simple non-neural baselines
+on content quality on any GraphRAG task tried; none of this tests the paper's ~120M-parameter regime.
+
+**Then:** [`docs/constraints.md`](docs/constraints.md) — the hard constraints
 that shape everything else (no pretrained NCM checkpoint fits any GraphRAG task, no
 training code is released for NCM at all, so this project trains its own
 tokenizer+generator pairs from scratch against the released model code) and the real
