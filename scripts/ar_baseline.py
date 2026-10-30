@@ -56,6 +56,10 @@ class GPT(nn.Module):
         self.wte, self.wpe = nn.Embedding(VOCAB, D), nn.Embedding(MAXLEN, D)
         self.blocks = nn.ModuleList(Block() for _ in range(LAYERS))
         self.ln = nn.LayerNorm(D)
+        # GPT-style init. The default N(0,1) embedding with a tied output head starts at loss ~255
+        # (logit std ~ sqrt(D)) instead of ~ln(50304) = 10.8.
+        nn.init.normal_(self.wte.weight, std=0.02)
+        nn.init.normal_(self.wpe.weight, std=0.02)
 
     def forward(  # ty: ignore[invalid-mutable-override]
         self, ids: torch.Tensor, select: torch.Tensor | None = None
