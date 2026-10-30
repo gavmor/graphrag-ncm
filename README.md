@@ -12,8 +12,9 @@ data, NCM produced valid, bounded, fast output (6-13 ms) but did not match simpl
 baselines on content quality. A trained Multi-News drafter supported only 10% of its claims; a
 matched-size early-stopped autoregressive control reached the same failure floor at 11%. Widening
 the NCM from 10.9M to 19.3M parameters did not improve it. This is evidence of a scale/data failure
-in this experiment, not that NCM is intrinsically worse than autoregressive decoding, and it does
-not test the paper's ~120M-parameter regime.
+in this experiment, not that NCM is intrinsically worse than autoregressive decoding. No paper-scale
+model was trained here on GraphRAG-shaped data; the released 88M XSum model was evaluated in-domain
+and for zero-shot GraphRAG transfer only.
 
 **Then:** [`docs/constraints.md`](docs/constraints.md) — the hard constraints
 that shape everything else (no pretrained NCM checkpoint fits any GraphRAG task, no
@@ -134,8 +135,8 @@ well below a bag-of-words softmax regression (44.7) and Claude haiku-5-5 (61.8, 
 What did and did not move it, and the traps hit along the way (sorted val file, leaky train
 holdout, single-seed deltas that reversed on replication), are in `docs/constraints.md` §9.
 
-**At the paper's own scale the picture is more favourable, with the same caveat.** The *released*
-88M XSum checkpoint (no training here) gets ROUGE-1/2/L of 34.1/11.8/26.3 on 150 XSum test articles,
+**The released 88M XSum checkpoint tests paper-scale parameters, but not GraphRAG training.** With
+no training here, it gets ROUGE-1/2/L of 34.1/11.8/26.3 on 150 XSum test articles,
 against 17.4/1.4/12.6 for the lead sentence and 28.3/7.4/18.8 for zero-shot Claude haiku-5-5, at
 ~102 ms per summary in-process. That is not evidence it beats Claude (it was trained on XSum; ROUGE
 rewards house style), and it still garbles proper nouns (`Guingamp` -> `Guernan Guineamp`), the same

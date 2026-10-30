@@ -211,11 +211,13 @@ implemented as a cheap word-Jaccard proxy rather than a learned scorer). Result 
 10 held-out examples at best-of-16: **0/10 exact matches.** The first entity per text
 unit is reliably correct; the second entity's name/description frequently has
 substitution or duplication noise (`"NILE LABS"` → `"NILELELENICS"`,
-`"operates in"` → `"operates operates in"`). This tracks the scale gap directly: this
-generator is 0.84M non-embedding parameters trained on 8,000 synthetic examples: the
-Gemini doc's own target is a 120M-parameter model (~143x larger) trained on ~1-2
-billion tokens. MBR/best-of-N reranking selects among a small model's candidates; it
-cannot manufacture capacity the model doesn't have.
+`"operates in"` → `"operates operates in"`). A scale gap exists: this generator has
+0.84M non-embedding parameters and 8,000 synthetic examples, while the paper's
+conditional generators have 88.02M parameters for XSum and 119.96M for WMT14. The
+Gemini background document's 120M/1-2B GraphRAG target is a speculative projection,
+not a paper result or recipe. No data-volume ratio is reported here because examples
+and full-length token positions are different units. MBR/best-of-N reranking selects
+among a small model's candidates; it cannot manufacture missing capacity.
 
 ### End-to-end run through graphrag's real, unmodified `GraphExtractor`
 

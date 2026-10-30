@@ -3,21 +3,30 @@
 Status: research closed out for review. Everything below is measured in this repository; the
 per-experiment detail, run history and traps are in [`constraints.md`](constraints.md) §7-§12.
 
-## One-paragraph answer
+## Short answer
 
-At the scale this project could train (1-11M parameters from scratch, ~40 minutes per run), **NCM
-reliably produces valid, bounded, fast output but did not match simple non-neural baselines on
-content quality on any GraphRAG task tried.** It emitted well-formed output 97-100% of the time at
-6-13 ms per call, and was typically 100-200x faster than a Claude call (not like-for-like). It did not
-reproduce entity names, did not beat a bag-of-words linear classifier on relation typing, did not
-beat a feature lookup table on map-stage relevance, and a drafter trained on multi-document news
-did not use its source text. **None of this tests the architecture at the paper's scale** (~120M
-parameters, 1-2B tokens): the models here are more than 10x smaller and trained on ~40,000x less data.
-The released 88M XSum checkpoint, the only paper-scale model available, also failed on GraphRAG text.
+At the scale this project trained from scratch (0.83M-30.04M generator parameters, mostly 12k-step
+single-GPU runs), **NCM reliably produces valid, bounded, fast output but did not match simple
+non-neural baselines on content quality on any GraphRAG task tried.** It emitted well-formed output
+97-100% of the time at 6-13 ms per call, and was typically 100-200x faster than a Claude call (not
+like-for-like). It did not reproduce entity names, did not beat a bag-of-words linear classifier on
+relation typing, did not beat a feature lookup table on map-stage relevance, and its 38k-pair
+Multi-News drafter memorised training pairs but generalised source conditioning weakly.
+
+**No model trained here tests NCM at the paper's conditional-generation scale on GraphRAG-shaped
+data.** The paper uses 88.02M parameters for XSum and 119.96M for WMT14. This project did evaluate
+the released 88M XSum checkpoint, both in-domain and zero-shot on GraphRAG text; its zero-shot failure
+shows poor transfer, not failure after task-specific GraphRAG training. The paper's recipes are also
+far larger: XSum uses 350k updates at global batch 512, while LM1B and OpenWebText report 13.36B and
+127.22B full-length token positions including tokenizer training. See
+[paper Appendix C](https://arxiv.org/html/2610.14162v1#A3). An earlier version incorrectly described
+the paper as a "~120M, 1-2B token" regime and compared training pairs with token positions; those
+units are not comparable.
 
 ## Scope and honest limits (read before quoting any number)
 
-- Models trained here: 0.83M-11M generators (+6-15M VQ-VAE tokenizers), single GPU, 12k steps.
+- Models trained here: 0.83M-30.04M generators (+6-15M VQ-VAE tokenizers), one RTX 3090 24 GB.
+  Baseline configurations mostly ran 12k steps; the 19.3M drafter width probe ran 6,001.
 - The NCM training code is not released; this project re-implemented training against the released
   model code. Treat the training recipe as unverified against the authors'.
 - Most training-quality deltas are single-seed. Where replicated, seed noise was large (TACRED sd 0.5
@@ -82,10 +91,11 @@ The released 88M XSum checkpoint, the only paper-scale model available, also fai
 - **Not a fit (measured):** anything that must reproduce input strings exactly (entity names), and,
   at the scales tried, content-quality tasks generally.
 - **Supported:** structural validity and low latency for bounded outputs (JSON, label ids).
-- **Open, not tested:** whether a model near the paper's scale, trained on real GraphRAG-produced
-  data, closes the quality gap. This is the natural next experiment and the only one that would
-  change the conclusion. A decision-useful alternative is to keep an autoregressive model for content
-  and use a tiny classifier or lookup for the bounded stages, which matched or beat the NCM here.
+- **Open, not tested:** whether an approximately 88-120M conditional generator, trained on enough
+  real GraphRAG-produced data with a validated recipe, closes the quality gap. The released 88M XSum
+  checkpoint tests in-domain XSum and zero-shot transfer only. A decision-useful alternative is to
+  keep an autoregressive model for content and use a tiny classifier or lookup for the bounded
+  stages, which matched or beat the NCM here.
 
 ## Measurement traps worth reusing (each nearly produced a wrong conclusion)
 

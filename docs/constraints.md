@@ -142,12 +142,14 @@ package versions (torch build) while setting up this project's own `uv`-managed 
   recommendation), **0/10 sampled examples exactly matched their ground truth.** The
   first entity per text unit is reliably correct; the second entity's name/description
   frequently has substitution or duplication noise (e.g. "NILE LABS" → "NILELELENICS",
-  "operates in" → "operates operates in"). This is consistent with (not a surprise
-  given) the scale gap: this project's extraction generator is 0.84M non-embedding
-  parameters trained on 8,000 synthetic examples; the Gemini doc's own target is a
-  120M-parameter model (~143x larger) trained on ~1-2 billion tokens. MBR/best-of-N
-  reranking can only select among a small model's imperfect candidates — it cannot
-  manufacture the capacity a 143x-smaller model doesn't have.
+  "operates in" → "operates operates in"). A scale gap exists: this project's
+  extraction generator has 0.84M non-embedding parameters and 8,000 synthetic
+  examples, while the paper's conditional generators have 88.02M parameters for
+  XSum and 119.96M for WMT14. The Gemini background document's 120M/1-2B GraphRAG
+  target is a speculative projection, not a paper result or training recipe. Do not
+  compare the 8,000 examples with the paper's token-position budgets; they are
+  different units. MBR/best-of-N reranking can only select among a small model's
+  imperfect candidates.
 - **Closed-vocabulary, fixed-cardinality synthetic data.** `src/ncm_graphrag/data/extraction.py`
   generates exactly 2 entities per text unit from the same closed ~12-domain/~12-entity
   vocabulary as the map-stage dataset — not the variable 0-N entities real text
@@ -209,8 +211,9 @@ grounded selection cannot help. Span grounding only helps if it **constrains** d
 30.04M), depth (6 → 8), codebook size (512, 1024) and per-level grading, PAD-masked
 prefix attention, schedule (batch 64 x 24000 vs batch 128 x 12000), dropout 0.05, steps,
 encoder trainability, hierarchy depth, decode penalties. The honest remaining options are
-a ~120M-parameter model (the background doc's own regime, far outside a single-run budget
-here) or constrained decoding to source spans.
+an approximately 88-120M conditional generator trained on enough GraphRAG-shaped data
+(the paper's task-specific scale, far outside the data and single-run budget here), or
+constrained decoding to source spans.
 
 ## 8. Real map-stage scoring (Lead 1): what was measured
 
@@ -340,11 +343,14 @@ dropout did not close that gap; they only moved the precision/recall operating p
 - Training-schedule overrides (`NCM_STEPS` etc.) had been silently reverted by an earlier discard
   that reset the worktree; the training log's last step (7999 instead of 3999) exposed it.
 
-## 10. What the NCM is good at, measured at the paper's own scale (released XSum checkpoint)
+## 10. Released paper-scale XSum checkpoint probe
 
-§7-§9 are 1-11M-parameter models trained from scratch for ~40 minutes; they cannot say how the
-architecture behaves at the scale the paper uses. This probe runs the **released** XSum checkpoint
-(88.0M generator + 60.6M VQ-VAE, 4096 codes/level, 9 levels, 512-token prefix) with no training here.
+§7-§9 train 0.83-30.04M-parameter generator variants from scratch, primarily in roughly
+40-minute runs. They do not test task-specific GraphRAG training at the paper's
+conditional-generator scale. This probe does test
+a paper-scale model—the **released** XSum checkpoint (88.0M generator + 60.6M VQ-VAE, 4096
+codes/level, 9 levels, 512-token prefix)—but only in-domain on XSum and as a zero-shot transfer
+model on GraphRAG-shaped text.
 
 **30. Setup.** 150 XSum test articles, seeded random sample (seed 11), filtered to >=200 GPT-2 tokens
 (median 415; the checkpoint is documented as unreliable on short input). Metrics: ROUGE-1/2/L
@@ -538,6 +544,7 @@ being in the latent codes rather than the final token pick.
 **45. Status of the drafter question.** Tried: bidirectional prefix encoder, condition dropout with
 guidance at four scales, dropout 0.3, decode penalties, grounded targets. None moves the blind judge
 outside noise (supported 9-16%, fully faithful 2-7%, fluency 1.0), all at or below the released XSum
-model's 27% floor. Single seed, n=60 per cell, an 11M model. What was not tried: a model near the
-paper's scale, an autoregressive baseline at equal size (which would show whether the gap is NCM
-or just scale and data), or early stopping at the held-out minimum.
+model's 27% floor. Single seed, n=60 per cell, an 11M model. What remains untried is a
+model near the paper's conditional-generator scale trained on enough GraphRAG-shaped data.
+A matched-non-embedding-parameter autoregressive control and early stopping were tried later;
+both remained at the same failure floor (see `findings.md` addendum).
