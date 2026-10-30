@@ -488,3 +488,21 @@ generalises little. Free-running ROUGE hid this because decoding fails even on m
 (in-sample ROUGE-1 4.0 vs held-out 3.8). This supersedes the §38 reading "does not use the source":
 it does use it, but only to recall pairs it has seen. Teacher-forced loss is itself an imperfect proxy
 (earlier tasks showed it can rise while generation worsens), so this is a diagnostic, not a score.
+
+**43. Regularisation and decode penalties on the drafter (judge-controlled; nothing adopted).**
+Trainer now has optional held-out teacher-forced loss (`NCM_EVAL_EVERY`) and the drafter a dropout
+override (`NCM_DROPOUT`).
+
+| setting | held-out TF loss | ROUGE-1 | grounding | entity/number | judge (n=60): supported / fully faithful / fluency |
+|---|---|---|---|---|---|
+| dropout 0.1 (baseline) | 3.88 (final) | 4.14 | 26.3 | 46.5 | 10% / 5% / 1.0 |
+| dropout 0.3 | **3.07 at step ~6-7k**, 3.21 at 12k | 3.68 | 29.3 | 56.3 | 16% / 7% / 1.0 |
+| dropout 0.3 + decode penalties | - | 3.96 | 25.7 | 47.6 | 13% / 2% / 1.0 |
+
+Dropout 0.3 improves held-out teacher-forced loss a lot (3.88 -> 3.07 at best, with a visible overfitting
+turn after ~7k steps) and raises both grounding proxies, but the judge does not separate it from the
+baseline (fully-faithful 95% CIs 2-13 vs 0-12) and fluency stays 1.0. This is the sixth time teacher-forced
+loss improved without a matching generation gain on this project. Decode penalties (frequency 1.5,
+adjacency 3,3,0.6, the settings the released free-text checkpoints use) did not help either: outputs
+still repeat tokens (`North North Korea has North`) because the repetition originates in the latent
+codes, while the penalties act only on the final token pick. Single seed, n=60 per cell.

@@ -414,4 +414,13 @@ def build_report_multinews_model_cfg() -> DictConfig:
 
 
 def build_report_multinews_generation_cfg() -> DictConfig:
+    """Decode settings for the drafter.
+
+    Default keeps the penalties OFF (the extraction recipe) so recorded numbers stay reproducible.
+    NCM_DECODE_PENALTY=1 switches to the frequency/adjacency penalties the released free-text
+    checkpoints use. Measured on the drafter: no judge-visible gain (13% supported vs 10-16%), because
+    the repetition comes from the latent codes, not from the final token pick the penalties act on.
+    """
+    if os.environ.get("NCM_DECODE_PENALTY", "0") == "1":
+        return build_generation_cfg()
     return build_extraction_generation_cfg()
