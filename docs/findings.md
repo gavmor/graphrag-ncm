@@ -132,6 +132,10 @@ Checkpoints are not committed (`artifacts/` is ignored); the numbers above regen
   parameters at 38k pairs; outputs still repeat tokens. Single seed. The harness run for it crashed
   because `autoresearch.sh` does not forward `NCM_REPORT_WIDTH`; numbers come from the same command run
   with the env set (evaluating a width-512 checkpoint needs `NCM_REPORT_WIDTH=512 NCM_DROPOUT=0.3`).
+- **Judge repeatability:** re-judging the *same* 60 baseline outputs three times gave 8%, 11% and 7% claims
+  supported (fully faithful 5% each time; anchors OK). Judge-only noise is therefore about 4 points, before any
+  sampling noise from the 60 sources, so the 9-16% spread across all drafter variants is not distinguishable
+  from the baseline's 10%.
 - **Where the failure shows up:** free-running output has 17.3% adjacent repeated words vs 0.1% in
   human references and 0.3% in the tokenizer's own reconstruction, so the degeneration is in generation,
   not the tokenizer. Untested explanation: parallel per-position decoding.
