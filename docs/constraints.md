@@ -447,9 +447,10 @@ full articles), so ROUGE has a ceiling; lead-1 scores 13.9 ROUGE-1.
 **38. Result.** 10.95M generator + 14.7M VQ-VAE, 12,000 steps. ROUGE-1 **4.14**, content-word
 grounding 26.3%, entity/number grounding 46.5%, 12.4 words/output, valid 0.995, 11 ms. Blind claim judge
 (n=60, anchors OK: lead-1 96%, wrong-source 0%, human reference 50%): **10% of claims supported, 5%
-fully faithful, fluency 1.0.** In-sample ROUGE-1 4.0 vs held-out 3.8: not memorising; the model does not
-use the source. Outputs are topical word salad. This is *below* the released XSum model's 27%
-in-domain floor.
+fully faithful, fluency 1.0.** Outputs are topical word salad. This is *below* the released XSum model's
+27% in-domain floor. **Correction (see #42):** an earlier version of this section said the model was "not
+memorising" because in-sample and held-out generation ROUGE were both ~4. Teacher-forced loss shows the
+opposite: the model memorises the training pairs and generalises little.
 
 **39. Remedies, all judged or proxy-gated (nothing beat noise).**
 - Bidirectional 2-block prefix encoder: ROUGE-1 3.94, grounding 24.9, entity/number 44.9; ~40% slower.
@@ -472,3 +473,18 @@ in-domain floor.
 lead-only source with a hard ROUGE ceiling. This says an NCM at this scale and data volume does not
 condition on its source. It does not say what a ~100M-parameter model on real GraphRAG data would do.
 See [`findings.md`](findings.md) for the consolidated report.
+
+**42. Correction: the drafter memorises (teacher-forced loss by prefix).** `scripts/prefix_use.py`
+measures teacher-forced loss with the correct, a shuffled, and a null prefix (384 examples each):
+
+| examples | correct | shuffled | null |
+|---|---|---|---|
+| training (in-sample) | **1.50** | 2.46 | 3.26 |
+| held-out validation | **3.88** | 4.01 | 4.13 |
+
+On training pairs the source matters a lot (1.50 vs 2.46); on held-out pairs it barely does (3.88 vs 4.01,
+about 0.13 nats). So the 11M drafter memorises ~38k source-to-summary pairs over ~40 epochs and
+generalises little. Free-running ROUGE hid this because decoding fails even on memorised pairs
+(in-sample ROUGE-1 4.0 vs held-out 3.8). This supersedes the §38 reading "does not use the source":
+it does use it, but only to recall pairs it has seen. Teacher-forced loss is itself an imperfect proxy
+(earlier tasks showed it can rise while generation worsens), so this is a diagnostic, not a score.

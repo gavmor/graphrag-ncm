@@ -67,8 +67,11 @@ The released 88M XSum checkpoint, the only paper-scale model available, also fai
    was statistically indistinguishable from a summary of the *wrong* chunk. It invents entities.
 6. **Trained drafter (final experiment).** Multi-News (2-5 articles -> first summary sentence,
    38k pairs). Baseline: ROUGE-1 4.14 (lead-1 13.9), 10% of claims supported, fluency 1.0. Held-out
-   ROUGE equals in-sample (3.8 vs 4.0), so it is not memorising: **it does not condition on the source**
-   and emits topical word salad (`A alert singer recruiting Sol Biden hostage...`). Remedies tried:
+   ROUGE is ~equal in-sample and held-out (4.0 vs 3.8), which I first read as "not memorising"; that was
+   wrong. Teacher-forced loss says it **memorises** (in-sample loss 1.50 with the correct prefix vs 2.46
+   shuffled; held-out 3.88 vs 4.01), so it barely generalises its use of the source, and free-running
+   decoding fails even on memorised pairs, which hid the gap from ROUGE. It emits topical word salad
+   (`A alert singer recruiting Sol Biden hostage...`). Remedies tried:
    a bidirectional prefix encoder (no gain), and condition dropout + a train-time pad mask +
    classifier-free guidance. Guidance raised proxies slightly (entity/number grounding 41.7 -> 47.3 at
    scale 1) and the judge moved from 9% to 15% claims supported, but fully faithful summaries fell
