@@ -9,6 +9,7 @@ from models.vqvae import VQVAE
 
 from ncm_graphrag.ncm.config import build_tokenizer_cfg
 from ncm_graphrag.ncm.generator_cache import load_or_build_cache
+from scripts.fewnerd_probe import _validate_cached_values
 
 
 def tiny_tokenizer_cfg():
@@ -87,6 +88,19 @@ class GeneratorCacheTests(unittest.TestCase):
         torch.save(payload, self.cache)
         with self.assertRaisesRegex(ValueError, "contents changed"):
             self.load()
+
+    def test_mathematical_validation_rejects_wrong_values_in_full_and_partial_batches(self):
+        # Cover a complete middle batch and the final two-row cache batch.
+        self.prefix = self.prefix.repeat(26, 1)
+        self.target = self.target.repeat(26, 1)
+        cached = self.load()
+        for field in ("idx", "rest_embed"):
+            for row in (100, 129):
+                with self.subTest(field=field, row=row):
+                    wrong = {name: value.clone() for name, value in cached.items()}
+                    wrong[field][row, 0] += 1
+                    with self.assertRaises(AssertionError):
+                        _validate_cached_values(self.vq, self.target, wrong)
 
 
 if __name__ == "__main__":

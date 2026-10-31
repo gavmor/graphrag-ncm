@@ -15,7 +15,6 @@ from typing import Any
 
 import boto3
 import torch
-import torch.nn.functional as F
 from omegaconf import OmegaConf
 
 from ncm_graphrag.data.extraction import parse_records
@@ -131,6 +130,8 @@ def train_probe(root, spec, tokenizer_cfg, model_cfg):
     }
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     sys.argv = [sys.argv[0], "--task", TASK]
+    # Cache construction and verification use the same cuDNN selection policy.
+    torch.backends.cudnn.benchmark = False
     start = time.monotonic()
     print("STAGE tokenizer: 1500 steps", flush=True)
     active["stage"] = "tokenizer"
@@ -146,72 +147,66 @@ def train_probe(root, spec, tokenizer_cfg, model_cfg):
 
 
 @torch.no_grad()
-def cache_diagnostics(generator, spec, tokenizer_cfg, model_cfg, root):
+def _validate_cached_values(vqvae, target, cache):
+    """Verify cached values under the probe's construction execution policy.
+
+    Construction uses contiguous 64-row batches with cuDNN autotuning disabled.
+    Cross-shape floating-point embedding equality is not a cache contract.
+    """
+    device = next(vqvae.parameters()).device
+    n = len(target)
+    selected = torch.tensor(sorted({0, min(1, n - 1), min(63, n - 1), min(64, n - 1), min(1000, n - 1), n // 2, n - 1}))
+    original_benchmark = torch.backends.cudnn.benchmark
+    try:
+        # NCMTaskGenerator enables autotuning for decoding; that is not the
+        # algorithm-selection policy used to produce this training cache.
+        torch.backends.cudnn.benchmark = False
+        idx = vqvae.encode(target[selected].to(device)).cpu()
+        torch.testing.assert_close(idx, cache["idx"][selected], rtol=0, atol=0)
+
+        rows_checked = 0
+        max_error = 0.0
+        for start in sorted({(row // 64) * 64 for row in selected.tolist()}):
+            end = min(start + 64, n)
+            idx = vqvae.encode(target[start:end].to(device))
+            rest = vqvae.vq.idx_to_ncm_input(idx).cpu()
+            torch.testing.assert_close(
+                idx.cpu(),
+                cache["idx"][start:end],
+                rtol=0,
+                atol=0,
+                msg=f"Cache codes differ in original batch [{start}:{end}]",
+            )
+            torch.testing.assert_close(
+                rest,
+                cache["rest_embed"][start:end],
+                rtol=1e-5,
+                atol=1e-6,
+                msg=f"Cache embeddings differ in original batch [{start}:{end}]",
+            )
+            rows_checked += end - start
+            max_error = max(max_error, float((rest - cache["rest_embed"][start:end]).abs().max()))
+        return {
+            "cross_batch_code_rows_checked": selected.tolist(),
+            "embedding_batch_size": 64,
+            "embedding_rows_checked": rows_checked,
+            "embedding_max_abs_error": max_error,
+            "cudnn_benchmark": False,
+        }
+    finally:
+        torch.backends.cudnn.benchmark = original_benchmark
+
+
+def validate_cache(generator, spec, tokenizer_cfg, model_cfg, root):
     prefix, target = train_generator._build_dataset(
         spec, model_cfg.prefix_len, tokenizer_cfg.vqvae.context_length, generator.pre_tok
     )
-    # This exercises the production loader against the exact complete dataset,
-    # checkpoint bytes, model state and saved tensor checksums before comparing.
+    # Validate complete provenance and stored checksums before checking values.
     cache = load_or_build_cache(generator.vqvae, tokenizer_cfg.save_path, prefix, target, root / "generator.cache.pt")
-    selected = torch.tensor([0, 1, 63, 64, 1000, len(target) // 2, len(target) - 1])
-    reference_idx, reference_rest = cache["idx"][selected], cache["rest_embed"][selected]
-    diagnostics: dict[str, Any] = {}
-    matching = None
-    original_benchmark = torch.backends.cudnn.benchmark
-    try:
-        for benchmark in (False, True):
-            torch.backends.cudnn.benchmark = benchmark
-            for geometry in ("original_64", "selected_7"):
-                if geometry == "selected_7":
-                    idx = generator.vqvae.encode(target[selected].to(generator.device))
-                    rest = generator.vqvae.vq.idx_to_ncm_input(idx)
-                else:
-                    indices, embeddings = [], []
-                    # Reconstruct each original cache batch, then select its row.
-                    for row in selected.tolist():
-                        start = (row // 64) * 64
-                        batch_idx = generator.vqvae.encode(target[start : start + 64].to(generator.device))
-                        batch_rest = generator.vqvae.vq.idx_to_ncm_input(batch_idx)
-                        indices.append(batch_idx[row - start].cpu())
-                        embeddings.append(batch_rest[row - start].cpu())
-                    idx, rest = torch.stack(indices), torch.stack(embeddings)
-                idx, rest = idx.cpu(), rest.cpu()
-                delta = rest - reference_rest
-                name = f"benchmark_{benchmark}_{geometry}"
-                diagnostics[name] = {
-                    "codes_equal": torch.equal(idx, reference_idx),
-                    "embedding_max_abs_error": float(delta.abs().max()),
-                    "embedding_relative_l2_error": float(delta.norm() / reference_rest.norm()),
-                    "embedding_strict_close": torch.allclose(rest, reference_rest, rtol=1e-5, atol=1e-6),
-                }
-                if not benchmark and geometry == "original_64":
-                    matching = (idx, rest)
-                if benchmark and geometry == "selected_7":
-                    p = prefix[selected].to(generator.device)
-                    z = generator.vqvae.encoder.wte(p)
-                    query = generator.net.build_l0_query_input(len(selected), dtype=rest.dtype)
-                    cached_logits = generator.net(torch.cat((z, query, reference_rest.to(generator.device)), dim=1))
-                    fresh_logits = generator.net(torch.cat((z, query, rest.to(generator.device)), dim=1))
-                    labels = idx.to(generator.device).reshape(-1)
-                    diagnostics["generator_consumer"] = {
-                        "max_abs_logit_delta": float((cached_logits - fresh_logits).abs().max()),
-                        "predicted_codes_equal": torch.equal(cached_logits.argmax(-1), fresh_logits.argmax(-1)),
-                        "cross_entropy_delta": float(
-                            abs(
-                                F.cross_entropy(cached_logits.reshape(-1, cached_logits.shape[-1]), labels)
-                                - F.cross_entropy(fresh_logits.reshape(-1, fresh_logits.shape[-1]), labels)
-                            )
-                        ),
-                    }
-    finally:
-        torch.backends.cudnn.benchmark = original_benchmark
-    # Persist diagnostics before asserting: a failed check must not lose evidence.
-    (root / "cache-diagnostics.json").write_text(json.dumps(diagnostics, indent=2) + "\n")
-    print("CACHE_DIAGNOSTICS " + json.dumps(diagnostics), flush=True)
-    assert matching is not None
-    torch.testing.assert_close(matching[0], reference_idx, rtol=0, atol=0)
-    torch.testing.assert_close(matching[1], reference_rest, rtol=1e-5, atol=1e-6)
-    return diagnostics
+    validation = _validate_cached_values(generator.vqvae, target, cache)
+    (root / "cache-validation.json").write_text(json.dumps(validation, indent=2) + "\n")
+    print("CACHE_VALIDATION " + json.dumps(validation), flush=True)
+    return validation
 
 
 def evaluate_probe(root, spec, tokenizer_cfg, model_cfg, training_seconds):
@@ -277,8 +272,8 @@ def evaluate_probe(root, spec, tokenizer_cfg, model_cfg, training_seconds):
         "examples": rows,
     }
     (root / "evaluation.json").write_text(json.dumps(report, indent=2) + "\n")
-    # Do not lose the evaluation if a separate cache diagnostic fails.
-    report["cache_diagnostics"] = cache_diagnostics(generator, spec, tokenizer_cfg, model_cfg, root)
+    # Preserve predictions even if a meaningful cache invariant fails.
+    report["cache_validation"] = validate_cache(generator, spec, tokenizer_cfg, model_cfg, root)
     metrics["representative_cache_parity"] = 1
     metrics["probe_completed"] = 1
     (root / "evaluation.json").write_text(json.dumps(report, indent=2) + "\n")

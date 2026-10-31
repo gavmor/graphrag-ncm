@@ -114,33 +114,48 @@ the pipeline packages and publishes these outputs, including on task failure.
 The full probe and held-out results must be reviewed before merging; passing
 cache acceptance alone does not establish training quality.
 
-The evaluator persists raw predictions before cache assertions and records
-separate CUDA diagnostics for original 64-row cache batches versus a seven-row
-representative batch, with cuDNN benchmarking on and off. The exact-context
-comparison retains `rtol=1e-5, atol=1e-6` and requires identical codes; cross-context
-differences and their generator-logit/loss effects are reported separately,
-not hidden by broadening the tolerance.
+The evaluator persists predictions before validating the cache. Current
+acceptance requires exact discrete-code equality when representative rows are
+rebatched, plus fresh codes and embeddings matching the original contiguous
+64-row cache batches (including the short final batch). Embedding comparisons
+retain `rtol=1e-5, atol=1e-6`. Recomputations use construction's
+`cudnn.benchmark=False` policy, then restore the decoder's previous setting.
+Autotuned evaluation can choose a different nearest code for boundary cases, so
+it is not the execution context against which the training cache is validated.
+The check covers every row of the selected cache batches, not just the selected
+rows.
+
+Floating-point embedding equality across different CUDA batch shapes is not a
+cache contract. That comparison and its misleading failure fields have been
+removed, along with alternating benchmark experiments and incidental
+consumer-logit diagnostics.
+`cache-validation.json` and `evaluation.json`'s `cache_validation` field now
+contain only evidence from required assertions that passed. A code or embedding
+mismatch in the supported comparison still fails the task.
+
+The corrected check passed in `evaluate-saved-probe/3`: exact code equality for
+seven rebatched representative rows, plus exact fresh/cache code equality and
+zero embedding error over 272 rows across the corresponding original cache
+batches. No tolerance was relaxed. The preflight passed all 13 regression tests,
+including deliberate incorrect codes and embeddings in full and partial cache
+batches. All 300 predictions and checkpoint identities remained unchanged.
+The current report is
+`fewnerd/evaluations/fewnerd-evaluation-20261031T173056Z.tar.gz` in the private
+`ncm-fewnerd-probes` bucket, with local copies under
+`artifacts/fewnerd-cache-validation-corrected/`. Earlier reports below are
+historical, not the current validation contract or status.
 
 **2026-10-31 measured result:** `full-probe/1` completed all 1,500 tokenizer and
 3,000 generator optimizer steps in the ordinary CUDA task on worker
 `d15be218e9bb`, with nine intermediate optimizer/RNG snapshots persisted. Final
 teacher-forced generator training loss was 1.3400; the training-time held-out
 check (256 examples) reported loss 1.3108 and code accuracy 81.55%.
-The job failed only at a final cross-batch embedding comparison, after scoring
-all 300 examples; its original failure remains autoresearch run #27.
-The checkpoints/cache were exported despite that failure.
-`evaluate-saved-probe/1` then succeeded using those artifacts, verified saved
-step counters, repeated evaluation without retraining, and released the shared
-lock normally. Both preflights passed all 12 regression tests.
-
-The recovered original-64-row computation matches cached codes and embeddings
-**exactly** (maximum embedding error 0). Recomputing the seven selected rows as
-one batch keeps codes exact but changes embeddings by up to 1.15335e-5
-(relative L2 error 1.84845e-6). Toggling cuDNN benchmarking did not change these
-diagnostics. On the measured generator consumer, predicted codes stayed equal,
-maximum logit delta was 0.0131836, and cross-entropy delta was 4.76837e-7.
-The original failed process observed a larger cross-batch maximum, 2.90871e-5;
-no tolerance was widened to erase either result.
+The original job's checker incorrectly required tight floating-point embedding
+equality across batch shapes, after scoring all 300 examples. That historical
+checker error remains in run #27's raw log; it is not a current cache failure.
+The checkpoints/cache were exported, and `evaluate-saved-probe/1` subsequently
+verified exact original-batch parity without retraining. Historical artifacts
+are retained rather than rewritten.
 
 A CPU audit found 28 of the registered 300 validation prefixes also in the
 50,000-example generator training set. Both scores below use the same fixed
