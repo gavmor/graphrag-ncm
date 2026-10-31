@@ -1,0 +1,7 @@
+# Approved tiny control only. Immutable source revision: 1fc1af4f581f4dca377dcaaafd22e093fa27cf8b
+# Base dependency image unchanged; derivative adds GNU time 1.9-0.2.
+quality_image_digest: sha256:1043ce3c732b23d36524ff9a845e03872c8ea0e039425cd68f839f1f10432545
+quality_input_version: r1-03e5cb362d57ff91
+quality_input_sha256: 03e5cb362d57ff917ac963056ff6dd2b1d6b6ffd6fc139c804afb2ccb3bf9c28
+quality_checkpoint_prefix: fewnerd/quality/runs/tiny-03e5cb362d57ff91-seed0-attempt1
+quality_result_version: tiny-03e5cb362d57ff91-seed0-attempt1

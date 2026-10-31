@@ -178,6 +178,59 @@ both protocols and the offline GPT-2 cache without credentials, using determinis
 tar/gzip metadata. Actual control execution and its gate result are reported
 separately; approval covers only this bounded control, not T0 or generator work.
 
+**Completed bounded control:** Concourse
+`ncm-fewnerd-quality-control/tiny-overfit-control/1` succeeded on the existing
+untagged worker. The seed-0 full VQ model (15.20M total / 8.76M non-embedding
+parameters) trained exactly 2,000 updates, batch 32, learning rate 3e-4:
+64,000 example exposures. One earlier, unsaved CPU engineering step was separate
+from this research arm. No T0, generator updates, or protected-test predictions ran.
+
+| Final greedy metric, same 32 training targets | Correct / denominator | Percent |
+| --- | ---: | ---: |
+| Exact typed entity sets | 32 / 32 | 100% |
+| Exact entity names | 44 / 44 | 100% |
+| Exact multi-subword entity names | 42 / 42 | 100% |
+| Literal serialized target strings | 32 / 32 | 100% |
+
+Both proposed 95% tiny-set gates passed. Reloading the final persisted checkpoint
+on CPU reproduced the set/name counts. This demonstrates fit on these targets
+only, not generalization, lossless arbitrary-name representation, or the T0
+90% tuning-F1 / 80% target-exact continuation gate. The canonical autoresearch
+metric remains the identified untrained tuning control; this tiny checkpoint
+was deliberately not substituted for a tokenizer trained on the 6,000-row manifest.
+
+Training wall time including checkpoint I/O was 96.43 s; the foreground process
+wall time was 104.12 s. GNU time peak RSS was 2,073,244 KiB. Torch peak allocated
+CUDA memory was 2,415,576,576 bytes and peak reserved was 2,795,503,616 bytes.
+The 5-second sampler captured 21 whole-device samples with a peak of 3,817 MiB;
+this is a sampled lower bound, not exclusive process VRAM. GPU-kernel-only time
+was not measured. All 2,000 curve rows were finite. Training CE/VQ loss changed
+from 11.02583/89.58944 on the first update to 0.08678/0.51559 on the final update;
+these are training-mode losses with the original dropout/EMA policy.
+
+The lock was released before packaging/publication. All 21 model/optimizer/RNG
+snapshots (step zero, then every 100 updates), raw reconstructions, full curves,
+preparation logs, dependency list, runtime identities, and telemetry are durable:
+
+- Input archive SHA-256:
+  `03e5cb362d57ff917ac963056ff6dd2b1d6b6ffd6fc139c804afb2ccb3bf9c28`;
+  source revision `1fc1af4f581f4dca377dcaaafd22e093fa27cf8b`.
+- Dependency image digest:
+  `sha256:1043ce3c732b23d36524ff9a845e03872c8ea0e039425cd68f839f1f10432545`.
+- Private bucket `ncm-fewnerd-probes`, run prefix
+  `fewnerd/quality/runs/tiny-03e5cb362d57ff91-seed0-attempt1/`.
+- Final snapshot `checkpoints/tokenizer-002000.pt`, SHA-256
+  `8277a3ba6a67643a2b16c2aaf20d275fe3aaee1f856a8cd3e2c8a537aa9051c0`.
+- Packaged results:
+  `fewnerd/quality/results/fewnerd-quality-control-tiny-03e5cb362d57ff91-seed0-attempt1.tar.gz`,
+  SHA-256 `dc7fc19c6e6a0f8625b0255221eb23d3fb6a82df18ae02927a2a65c51f2992b5`.
+- Local evidence: `artifacts/fewnerd-quality-control/`; derived summary includes
+  current-versus-cumulative per-level utilization. No generator cache was needed.
+
+The next eligible study is the predeclared T0 schedule on the frozen 6,000 rows,
+with 1,500/3,000/6,000-step tuning checkpoints and the earlier-checkpoint tie rule.
+It was not authorized or started by the bounded-control approval.
+
 Historical replay remains available explicitly through
 `fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.
 That job restores the completed historical checkpoints without retraining; it
