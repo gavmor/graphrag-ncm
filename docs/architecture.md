@@ -258,6 +258,49 @@ utilization, and raw reconstructions. The held-out official-test sample is not
 evaluated. T0 is a single controlled schedule, not permission for an automatic
 loss ablation, generator run, or seed replication.
 
+**Completed T0 result:** Concourse `ncm-fewnerd-t0/schedule-control/1` succeeded.
+Training ran exactly 6,000 updates (768,000 exposures) in 423.26 s
+(574.26 s process wall). Torch peak allocated/reserved CUDA memory was
+8,907,780,352 / 10,848,567,296 bytes; the 5-second whole-device sampler recorded
+11,149 MiB peak across 87 samples (lower bound). All 6,000 curve rows were finite.
+The GPU lock was released before evaluation; all 13 snapshots are durable.
+CPU selection over the three declared checkpoints took 566.16 s with three
+single-threaded workers and 1,233,008 KiB peak RSS.
+
+| Checkpoint | Tuning typed entity F1 | Literal target exact | Strict validity |
+| --- | ---: | ---: | ---: |
+| 1,500 | 0.300% | 0.300% | 45.3% |
+| 3,000 | 3.817% | 1.900% | 88.8% |
+| 6,000 (selected) | 10.233% | 5.800% | 91.6% |
+
+Selection chose 6,000; the canonical offline benchmark independently reproduced
+1,500 and 6,000 exactly, including their CE and non-PAD CE values. **The proposed
+continuation gate (90% F1, 80% target exact) failed**, and the train-only grounded
+dictionary remains far ahead at 36.35%. The schedule is still improving at the
+predeclared endpoint, so this is a schedule-limited negative result, not evidence
+of an architectural ceiling.
+
+Diagnostics sharpen the diagnosis. At 6,000 steps, names seen in tokenizer training
+reach 39.13% F1 / 42.01% recall, while unseen names reach only 2.42% / 2.74%.
+Zero-exposure subword names reconstruct at exactly 0%; rare (1-5 occurrence)
+subwords reach 3.45%. Every codebook level is ~97-99% saturated (247-254 of 256
+codes). Errors therefore concentrate on unseen vocabulary rather than uniform
+copy failure.
+
+**T1 arm (conditional, predeclared):** because T0 missed the gate, one loss ablation
+is authorized with T0's rows, initialization, architecture, steps, optimizer, and
+checkpoint rule. Only reconstruction supervision changes: CE is averaged over
+non-PAD positions (EOS retained), with VQ loss unchanged. On the frozen data 53.4%
+of target positions are non-PAD, so this also approximately doubles the weight of
+real tokens relative to PAD; a gain would not isolate a single mechanism.
+At every 250th step it additionally records the pre-quantization encoder latent
+norm plus encoder gradient norms from reconstruction and VQ losses separately,
+their ratio, and an explicit zero-VQ-gradient flag. Those norms come from
+`autograd.grad` with `retain_graph`; the actual update still backpropagates
+reconstruction plus VQ, so training is unaffected. Protocol differences from T0 are
+enforced to be exactly `arm`, `loss`, and `diagnostic_cadence`.
+
+
 Historical replay remains available explicitly through
 `fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.
 That job restores the completed historical checkpoints without retraining; it

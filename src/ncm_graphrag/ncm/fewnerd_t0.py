@@ -20,29 +20,38 @@ from ncm_graphrag.ncm.fewnerd_quality import reconstruct
 from ncm_graphrag.ncm.train_tokenizer import _overfit_inputs, _overfit_update
 
 EVALUATION_STEPS = (1500, 3000, 6000)
-FIXED_RECIPE = {
-    "schema_version": 1,
-    "arm": "T0",
-    "steps": 6000,
-    "batch_size": 128,
-    "learning_rate": 3e-4,
-    "weight_decay": 0.01,
-    "gradient_clip": 1.0,
-    "initialization_seed": 0,
-    "sampling_seed": 0,
-    "checkpoint_every": 500,
-    "evaluation_steps": list(EVALUATION_STEPS),
-    "evaluation_device": "cpu",
-    "evaluation_batch_size": 8,
-    "evaluation_threads_per_worker": 1,
-    "evaluation_workers": 3,
-    "checkpoint_selection": "Highest tuning mean per-example typed entity-set F1; ties earlier",
-    "continuation_entity_f1_percent": 90,
-    "continuation_target_exact_percent": 80,
-    "sampling_rng": "Independent CPU torch.Generator; randint with replacement; stored row order",
-    "loss": "Mean reconstruction CE over all80 positions plus unchanged VQ loss",
-    "precision": "float32; TF32 disabled; deterministic algorithms; cuDNN benchmark false",
+RECIPES = {
+    "T0": {
+        "schema_version": 1,
+        "arm": "T0",
+        "steps": 6000,
+        "batch_size": 128,
+        "learning_rate": 3e-4,
+        "weight_decay": 0.01,
+        "gradient_clip": 1.0,
+        "initialization_seed": 0,
+        "sampling_seed": 0,
+        "checkpoint_every": 500,
+        "evaluation_steps": list(EVALUATION_STEPS),
+        "evaluation_device": "cpu",
+        "evaluation_batch_size": 8,
+        "evaluation_threads_per_worker": 1,
+        "evaluation_workers": 3,
+        "checkpoint_selection": "Highest tuning mean per-example typed entity-set F1; ties earlier",
+        "continuation_entity_f1_percent": 90,
+        "continuation_target_exact_percent": 80,
+        "sampling_rng": "Independent CPU torch.Generator; randint with replacement; stored row order",
+        "loss": "Mean reconstruction CE over all80 positions plus unchanged VQ loss",
+        "precision": "float32; TF32 disabled; deterministic algorithms; cuDNN benchmark false",
+    },
 }
+RECIPES["T1"] = {
+    **RECIPES["T0"],
+    "arm": "T1",
+    "loss": "Mean reconstruction CE over non-PAD positions (EOS retained) plus unchanged VQ loss",
+    "diagnostic_cadence": 250,
+}
+FIXED_RECIPE = RECIPES["T0"]
 
 
 def sha256(path):
@@ -60,9 +69,12 @@ def _json(path, value):
 def load_protocol(path):
     path = Path(path).resolve()
     protocol = json.loads(path.read_text())
-    for key, expected in FIXED_RECIPE.items():
+    arm = protocol.get("arm")
+    if arm not in RECIPES:
+        raise ValueError(f"Unsupported Few-NERD quality arm: {arm!r}")
+    for key, expected in RECIPES[arm].items():
         if protocol.get(key) != expected:
-            raise ValueError(f"T0 fixed protocol mismatch: {key}")
+            raise ValueError(f"{arm} fixed protocol mismatch: {key}")
     root = path.parent / protocol["frozen_inputs"]
     _, tokenizer, config, control = _overfit_inputs(root)
     if not control["training_ready"]:
@@ -115,20 +127,86 @@ def load_protocol(path):
         "scorer_oracle": oracle,
         "evaluation_is_after_gpu_lock_release": True,
         "batch_logits_bytes_float32": 128 * 80 * int(config.vqvae.in_vocab_size) * 4,
+        "pad_token_id": tokenizer.pad_token_id,
+        "eos_token_id": tokenizer.eos_token_id,
     }
     return resolved, train, tuning, tokenizer, config
 
 
+def _encoder_grad_norm(grads):
+    total = 0.0
+    for grad in grads:
+        if grad is not None:
+            total += float(grad.detach().float().norm()) ** 2
+    return math.sqrt(total)
+
+
+def t1_stepper(model, pad_token_id, cadence):
+    """Predeclared T1: non-PAD reconstruction CE, unchanged VQ loss, diagnostic cadence."""
+    encoder_parameters = [parameter for parameter in model.encoder.parameters() if parameter.requires_grad]
+    captured = {}
+    model.encoder.register_forward_hook(lambda _module, _inputs, output: captured.__setitem__("z", output))
+    state = {"completed_steps": 0}
+
+    def step(model, optimizer, batch):
+        state["completed_steps"] += 1
+        captured.clear()
+        logits, vq_loss, _, utilization, _ = model(batch)
+        flat_logits = logits.reshape(-1, logits.shape[-1])
+        flat_target = batch.reshape(-1)
+        keep = flat_target != pad_token_id
+        reconstruction = torch.nn.functional.cross_entropy(flat_logits[keep], flat_target[keep])
+        loss = reconstruction + vq_loss
+        if not torch.isfinite(loss):
+            raise ValueError("Non-finite T1 optimization loss")
+        latent = captured["z"].detach().float()
+        diagnostics = {
+            "reconstruction_ce_nonpad": float(reconstruction.detach()),
+            "reconstruction_ce_all_positions_reported": float(
+                torch.nn.functional.cross_entropy(flat_logits, flat_target).detach()
+            ),
+            "vq_loss": float(vq_loss.detach()),
+            "nonpad_token_fraction": float(keep.float().mean()),
+            "encoder_latent_l2_norm_mean": float(latent.norm(dim=-1).mean()),
+            "global_utilization": utilization,
+        }
+        if state["completed_steps"] % cadence == 0:
+            recon_grads = torch.autograd.grad(reconstruction, encoder_parameters, retain_graph=True, allow_unused=True)
+            vq_grads = torch.autograd.grad(vq_loss, encoder_parameters, retain_graph=True, allow_unused=True)
+            recon_norm = _encoder_grad_norm(recon_grads)
+            vq_norm = _encoder_grad_norm(vq_grads)
+            diagnostics.update(
+                encoder_grad_norm_reconstruction=recon_norm,
+                encoder_grad_norm_vq=vq_norm,
+                encoder_grad_norm_ratio_recon_over_vq=(recon_norm / vq_norm) if vq_norm > 0 else None,
+                encoder_grad_vq_is_zero=vq_norm == 0.0,
+                gradient_norm_method=(
+                    "autograd.grad L2 norm over encoder parameters, computed before optimizer.zero_grad/backward "
+                    "with retain_graph; the real update still uses reconstruction+vq backprop"
+                ),
+            )
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0, error_if_nonfinite=True)
+        optimizer.step()
+        diagnostics["gradient_norm_before_clip"] = float(gradient_norm)
+        return diagnostics
+
+    return step
+
+
 def train(protocol_path, output):
     resolved, rows, _, tokenizer, config = load_protocol(protocol_path)
+    arm = resolved["arm"]
     if os.environ.get("NCM_GPU_LOCK_HELD") != "1" or not torch.cuda.is_available():
-        raise RuntimeError("T0 research training requires a foreground Concourse CUDA task holding gpu-lock")
+        raise RuntimeError(f"{arm} research training requires a foreground Concourse CUDA task holding gpu-lock")
     import boto3
 
     bucket = os.environ["NCM_CHECKPOINT_BUCKET"]
     prefix = os.environ["NCM_CHECKPOINT_PREFIX"].strip("/")
-    if not prefix.startswith("fewnerd/quality/runs/t0-"):
-        raise ValueError("T0 requires a new, dedicated quality/runs/t0- namespace")
+    expected_prefix = f"fewnerd/quality/runs/{arm.lower()}-"
+    if not prefix.startswith(expected_prefix):
+        raise ValueError(f"{arm} requires a new, dedicated {expected_prefix} namespace")
     store = boto3.client("s3", endpoint_url=os.environ["NCM_S3_ENDPOINT"])
     store.head_bucket(Bucket=bucket)
     if store.list_objects_v2(Bucket=bucket, Prefix=prefix + "/", MaxKeys=1).get("KeyCount", 0):
@@ -178,23 +256,27 @@ def train(protocol_path, output):
         checkpoints.append(identity)
         _json(output / "checkpoints.json", checkpoints)
         store.upload_file(str(output / "checkpoints.json"), bucket, prefix + "/checkpoints.json")
-        print("T0_CHECKPOINT " + json.dumps(identity), flush=True)
+        print(f"{arm}_CHECKPOINT " + json.dumps(identity), flush=True)
 
+    step_fn = (
+        _overfit_update if arm == "T0" else t1_stepper(model, resolved["pad_token_id"], resolved["diagnostic_cadence"])
+    )
     snapshot(0)
     torch.cuda.reset_peak_memory_stats()
     started = time.monotonic()
     with (output / "curve.jsonl").open("x") as curve:
         for step in range(1, 6001):
             indices = torch.randint(0, len(data), (128,), generator=sampling_rng)
-            diagnostics = _overfit_update(model, optimizer, data[indices].cuda())
+            diagnostics = step_fn(model, optimizer, data[indices].cuda())
             curve.write(json.dumps({"completed_steps": step, **diagnostics}, allow_nan=False) + "\n")
             curve.flush()
             if step % 500 == 0:
                 snapshot(step)
                 store.upload_file(str(output / "curve.jsonl"), bucket, prefix + "/curve.jsonl")
-                print("T0_UPDATE " + json.dumps({"completed_steps": step, **diagnostics}), flush=True)
+                print(f"{arm}_UPDATE " + json.dumps({"completed_steps": step, **diagnostics}), flush=True)
     torch.cuda.synchronize()
     report = {
+        "arm": arm,
         "completed_steps": 6000,
         "example_exposures": 768000,
         "training_wall_seconds_including_checkpoints": time.monotonic() - started,
@@ -293,7 +375,7 @@ def export_candidate(checkpoint_path, protocol_path, destination, *, role):
     torch.save({"model": snapshot["model"]}, candidate)
     identity = {
         "kind": "controlled_tokenizer",
-        "arm": "T0",
+        "arm": resolved["arm"],
         "completed_steps": step,
         "initialization_seed": 0,
         "sampling_seed": 0,
@@ -352,7 +434,7 @@ def evaluate(protocol_path, results_path, output):
         results_path / f"tokenizer-{selected['step']:06d}.pt", protocol_path, output, role="tuning_selected"
     )
     report = {
-        "arm": "T0",
+        "arm": resolved["arm"],
         "evaluation_steps": list(EVALUATION_STEPS),
         "selection_rule": resolved["checkpoint_selection"],
         "selected_step": selected["step"],
@@ -368,7 +450,7 @@ def evaluate(protocol_path, results_path, output):
         "next_action": "Report and stop. T1, replication, or generator work requires separate authorization.",
     }
     _json(output / "selection.json", report)
-    print("T0_SELECTION " + json.dumps(report), flush=True)
+    print(f"{resolved['arm']}_SELECTION " + json.dumps(report), flush=True)
 
 
 def main():
@@ -382,7 +464,7 @@ def main():
     args = parser.parse_args()
     if args.preflight:
         resolved, _, _, _, _ = load_protocol(args.protocol)
-        print("T0_CONFIG " + json.dumps(resolved, sort_keys=True), flush=True)
+        print(f"{resolved['arm']}_CONFIG " + json.dumps(resolved, sort_keys=True), flush=True)
     elif args.output_dir is not None:
         train(args.protocol, args.output_dir)
     else:

@@ -42,6 +42,39 @@ class T0SelectionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, f"fixed protocol mismatch: {field}"):
                     load_protocol(path)
 
+    def test_unknown_arm_is_rejected_before_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "protocol.json"
+            path.write_text(json.dumps({**FIXED_RECIPE, "arm": "T2"}))
+            with self.assertRaisesRegex(ValueError, "Unsupported Few-NERD quality arm"):
+                load_protocol(path)
+
+    def test_t1_changes_only_the_declared_loss_link(self):
+        repository = Path(__file__).resolve().parents[1] / "benchmarks"
+        t0 = json.loads((repository / "fewnerd-t0.json").read_text())
+        t1 = json.loads((repository / "fewnerd-t1.json").read_text())
+        changed = {key for key in set(t0) | set(t1) if t0.get(key) != t1.get(key)}
+        self.assertEqual(changed, {"arm", "loss", "diagnostic_cadence"})
+        for key in (
+            "steps",
+            "batch_size",
+            "learning_rate",
+            "weight_decay",
+            "gradient_clip",
+            "initialization_seed",
+            "sampling_seed",
+            "evaluation_steps",
+            "training_manifest_sha256",
+            "tiny_control_sha256",
+            "frozen_inputs",
+        ):
+            self.assertEqual(t0[key], t1[key], key)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "protocol.json"
+            path.write_text(json.dumps({**t1, "steps": 6001}))
+            with self.assertRaisesRegex(ValueError, "T1 fixed protocol mismatch: steps"):
+                load_protocol(path)
+
 
 if __name__ == "__main__":
     unittest.main()
