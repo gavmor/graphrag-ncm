@@ -1,0 +1,6 @@
+# T0 only. Source revision 5dbf6bc81b8d1e6d7a6c52ab2b135a2ea047a5f6.
+t0_image_digest: sha256:1043ce3c732b23d36524ff9a845e03872c8ea0e039425cd68f839f1f10432545
+t0_input_version: r1-5300b43f034d4d8e
+t0_input_sha256: 5300b43f034d4d8e5c5149f09a910859eddafd95f0452859816c524a1b083e2d
+t0_checkpoint_prefix: fewnerd/quality/runs/t0-5300b43f034d4d8e-seed0-attempt1
+t0_result_version: 5300b43f034d4d8e-seed0-attempt1
