@@ -59,6 +59,18 @@ open-vocabulary entity names.
    One real bug in the data pipeline was worth 3x (upper-cased targets forced a case transform while
    copying; verbatim names raised F1 from 1.56 to 4.56). Every model-side lever (capacity, depth,
    codebook size/placement, dropout, schedule, decode-side reranking) was swept and rejected.
+   **Controlled tokenizer packet (2026-10-31, frozen data):** with a frozen 6,000-sentence training
+   subset, 1,000 tuning sentences, and two predeclared arms, the tokenizer alone reconstructed
+   tuning entity sets at **10.23%** mean typed F1 (all-position CE) and **10.45%** (non-PAD CE) after
+   6,000 updates each, versus a 36.35% train-only dictionary. Both arms missed the proposed 90%/80%
+   continuation gate, so no generator was trained. The diagnostic that matters: after training, names
+   **seen** during tokenizer training reached 40.6% F1 while **unseen** names reached 2.3%, names
+   whose subword tokens never appeared in training reconstructed at exactly 0%, and all five codebooks
+   were 96-99% saturated. Removing PAD supervision changed tuning F1 by only ~0.2 points, did not
+   improve its own non-PAD CE, and cost PAD reconstruction — so PAD dilution is not the binding
+   constraint. The evidence points at unseen-vocabulary coverage in the discrete bottleneck, not at
+   a training-schedule or PAD-weighting bug.
+
 2. **Map stage (72.6 AUC).** Labels are human-annotated supporting facts (HotpotQA). Raw-text NCM
    scores 61.3, barely above BM25 (59.1). It reaches 72.6 only when handed cheap lexical features
    computed in code, and a lookup table over those same features scores 75.2. So the NCM is a fast

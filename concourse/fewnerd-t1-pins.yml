@@ -1,0 +1,6 @@
+# T1 conditional ablation only. Source revision 1cc1758b84910f2558566fbd97757b397db292e5.
+t1_image_digest: sha256:1043ce3c732b23d36524ff9a845e03872c8ea0e039425cd68f839f1f10432545
+t1_input_version: r1-6c34e48dca949fa4
+t1_input_sha256: 6c34e48dca949fa47f3bb609c08bdeb5ff8e4db3d21615b9e7f6c343b5d744be
+t1_checkpoint_prefix: fewnerd/quality/runs/t1-6c34e48dca949fa4-seed0-attempt1
+t1_result_version: 6c34e48dca949fa4-seed0-attempt1

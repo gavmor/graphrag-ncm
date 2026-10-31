@@ -300,6 +300,56 @@ their ratio, and an explicit zero-VQ-gradient flag. Those norms come from
 reconstruction plus VQ, so training is unaffected. Protocol differences from T0 are
 enforced to be exactly `arm`, `loss`, and `diagnostic_cadence`.
 
+**Completed T1 result:** Concourse `ncm-fewnerd-t1/schedule-control/1` succeeded on
+the same worker and lock. Exactly 6,000 updates/768,000 exposures in 483.85 s;
+Torch peak allocated/reserved 7,367,205,376 / 16,653,484,032 bytes. All 13 snapshots
+are durable, and the lock was released before the 567.0 s three-worker CPU selection.
+The encoder-gradient diagnostic never reported a zero VQ gradient; the
+reconstruction-to-VQ encoder-gradient ratio ranged 3.85-12.47 across the 24 sampled
+checkpoints, and mean pre-quantization latent L2 norm fell from 10.96 to 2.85.
+
+| T1 checkpoint | Tuning F1 | Target exact | Strict validity | Tuning CE (all / non-PAD) |
+| --- | ---: | ---: | ---: | ---: |
+| 1,500 | 0.400% | 0.300% | 67.8% | 7.3927 / 0.9356 |
+| 3,000 | 3.967% | 2.100% | 83.9% | 8.0546 / 0.7006 |
+| 6,000 (selected) | 10.450% | 5.800% | 88.6% | 9.7221 / 0.6197 |
+
+Against T0 at 6,000 steps, T1 gained 0.217 F1 points (10.450 vs 10.233, +2.1%
+relative) with identical target exactness, while losing 3.0 points of strict validity.
+Crucially, T1 did **not** improve the very quantity it optimizes: its tuning non-PAD
+CE (0.6197) is marginally *worse* than T0's (0.6137), and its all-position CE rose
+from 0.3500 to 9.7221 because PAD positions lost all supervision. Seen-name F1 rose
+40.58 (vs 39.13) but unseen-name F1 fell to 2.32 (vs 2.42). The canonical offline
+benchmark reproduced T1's selected checkpoint exactly (F1 10.45, CE 9.72213,
+non-PAD CE 0.61967, name-token accuracy 41.34215).
+
+**Packet conclusion (negative).** Both predeclared arms miss the 90%/80% continuation
+gate, so the tokenizer packet stops before generator training. PAD dilution is not
+the binding constraint: removing PAD supervision changed tuning F1 by ~0.2 points in
+one seed, did not improve its own objective's CE, and sacrificed PAD reconstruction.
+The consistent signal instead is unseen-vocabulary coverage — seen names reach
+40.58% F1 while unseen names reach 2.32%, zero-exposure subword names reconstruct at
+exactly 0%, and all five codebooks are 96-99% saturated. That is consistent with a
+vocabulary-coverage or rate-distortion constraint (the proposal's own alternative
+branch), but one seed and one ablation cannot establish a hard capacity ceiling.
+
+No generator, replication, or protected-test evaluation was run. The single proposed
+next diagnostic is a separately trained continuous (non-discrete) autoencoder
+control on the same frozen 6,000 rows, isolating whether the discrete residual-VQ
+bottleneck rather than encoder/decoder capacity is what limits unseen-name copying.
+
+T1 artifacts: source revision `1cc1758b84910f2558566fbd97757b397db292e5`; input
+archive `6c34e48dca949fa47f3bb609c08bdeb5ff8e4db3d21615b9e7f6c343b5d744be`;
+identical dependency image; private run prefix
+`fewnerd/quality/runs/t1-6c34e48dca949fa4-seed0-attempt1/`; packaged results
+`fewnerd/quality/t1-results/fewnerd-t1-6c34e48dca949fa4-seed0-attempt1.tar.gz`
+(SHA-256 `04cf4051c0a6d4a9e0a52037410942b2b1d3aa22dbad996a9dc3bcfdf3598cea`).
+The workspace checkpoint in `benchmarks/fewnerd/candidate.pt` is restored to the T0
+reference arm so the canonical benchmark measures the declared reference, not the
+ablation; T1's selected model is retained under `artifacts/fewnerd-t1/`.
+
+
+
 
 Historical replay remains available explicitly through
 `fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.
