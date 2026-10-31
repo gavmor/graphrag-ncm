@@ -301,12 +301,14 @@ reconstruction plus VQ, so training is unaffected. Protocol differences from T0 
 enforced to be exactly `arm`, `loss`, and `diagnostic_cadence`.
 
 **Completed T1 result:** Concourse `ncm-fewnerd-t1/schedule-control/1` succeeded on
-the same worker and lock. Exactly 6,000 updates/768,000 exposures in 483.85 s;
-Torch peak allocated/reserved 7,367,205,376 / 16,653,484,032 bytes. All 13 snapshots
-are durable, and the lock was released before the 567.0 s three-worker CPU selection.
-The encoder-gradient diagnostic never reported a zero VQ gradient; the
-reconstruction-to-VQ encoder-gradient ratio ranged 3.85-12.47 across the 24 sampled
-checkpoints, and mean pre-quantization latent L2 norm fell from 10.96 to 2.85.
+the same worker and lock. Exactly 6,000 updates/768,000 exposures in 483.85 s
+(process wall 574.83 s); Torch peak allocated/reserved 7,367,205,376 / 16,653,484,032
+bytes; the 5-second sampler recorded 99 samples with a 16,636 MiB peak (whole-device
+lower bound). All 13 snapshots are durable, and the lock was released before the
+567.0 s three-worker CPU selection.
+The encoder-gradient diagnostic never reported a zero VQ gradient; across all 24
+sampled steps the reconstruction-to-VQ encoder-gradient ratio ranged 1.73-21.79
+(median 6.67), and mean pre-quantization latent L2 norm fell from 11.31 to 2.85.
 
 | T1 checkpoint | Tuning F1 | Target exact | Strict validity | Tuning CE (all / non-PAD) |
 | --- | ---: | ---: | ---: | ---: |
