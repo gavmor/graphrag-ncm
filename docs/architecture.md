@@ -125,6 +125,43 @@ scripts/prepare_fewnerd_quality_inputs.py --corpus-root /path/to/corpora
 directory. Input source hashes describe preparation; report source hashes identify
 the code actually evaluated.
 
+The ordinary tokenizer trainer also exposes a separate, explicit tiny-set control:
+
+```bash
+CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  PYTHONPATH=third_party/ncm:src uv run --offline --frozen \
+  python -m ncm_graphrag.ncm.train_tokenizer --task fewnerd_extraction \
+  --overfit-control --frozen-inputs benchmarks/fewnerd --preflight
+```
+
+Preflight resolves the first 32 stored tokenizer rows, verifies checksums,
+membership/disjointness and actual serialization token IDs, and reports the fixed
+2,000-update/batch-32/seed-0/3e-4 schedule separately from the historical defaults.
+This diagnostic set contains 44 names, 42 multi-subword. It currently reports
+`training_ready: false`: Phase A's protected-test manifest and prior-use clearance
+remain deferred. An attempted research launch fails before creating outputs or
+initializing CUDA/storage. Clearing this gate requires a newly frozen protocol,
+not editing immutable inputs during an optimization segment.
+
+After protocol clearance, remove `--preflight` and supply a new `--output-dir`
+only inside an approved foreground Concourse CUDA task holding `gpu-lock`.
+The control uses all 32 targets every update, the unchanged full VQ architecture,
+all-position CE plus VQ loss, and the existing AdamW/gradient-clipping recipe.
+It refuses CPU research execution and requires a new private checkpoint namespace;
+the historical probe prefix is forbidden. Model/optimizer/Torch-RNG snapshots at
+step zero and every 100 updates are written atomically and uploaded, with upload
+failure aborting training. Final greedy reconstructions report exact entity sets
+and exact multi-subword names against the proposed 95% gates. No automatic T0 or
+generator transition is implemented. Historical `train_tokenizer.main()` callers
+without these explicit flags retain their original behavior.
+
+Engineering verification exercised preflight, the incomplete-protocol refusal,
+and one full-architecture CPU optimizer step plus greedy reconstruction without
+saving a model. This is not the 2,000-update control or a gate result. The actual
+CUDA, durable-upload, and full-schedule execution paths remain unexercised; new
+source packaging, approved deployment/publication, and the proposal's task-level
+RAM/disk/telemetry/lock-release requirements are still prerequisites.
+
 Historical replay remains available explicitly through
 `fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.
 That job restores the completed historical checkpoints without retraining; it

@@ -1,10 +1,15 @@
 """Consumer-visible scoring, serialization, and grounded matching boundaries."""
 
+import hashlib
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from ncm_graphrag.data.extraction import COMPLETION_DELIMITER, RECORD_DELIMITER
 from ncm_graphrag.data.fewnerd_quality_metrics import dictionary_predictions, entities, name_spans, score_rows
 from ncm_graphrag.data.real_extraction import _record
+from ncm_graphrag.ncm.train_tokenizer import _overfit_inputs
 
 
 def target(*pairs):
@@ -73,6 +78,36 @@ class QualityMetricsTests(unittest.TestCase):
         for gold, predicted in (([], []), ([target(("Alice", "PERSON"))], [])):
             with self.assertRaises(ValueError):
                 score_rows(gold, predicted)
+
+
+class FrozenControlInputTests(unittest.TestCase):
+    def _write_inputs(self, root, groups):
+        hashes = {}
+        for split, identifiers in groups.items():
+            filename = f"{split}.jsonl"
+            payload = "".join(json.dumps({"group_id": identifier}) + "\n" for identifier in identifiers)
+            (root / filename).write_text(payload)
+            hashes[filename] = hashlib.sha256(payload.encode()).hexdigest()
+        (root / "frozen.json").write_text(json.dumps({"files": hashes}))
+
+    def test_overfit_rejects_changed_manifest_before_loading_tokenizer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_inputs(root, {"generator-train": ["a"], "tokenizer-train": ["a"], "tuning": ["b"]})
+            (root / "tokenizer-train.jsonl").write_text('{"group_id":"changed"}\n')
+            with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+                _overfit_inputs(root)
+
+    def test_overfit_rejects_duplicate_and_cross_split_sentence_groups(self):
+        for groups, message in (
+            ({"generator-train": ["a", "a"], "tokenizer-train": ["a"], "tuning": ["b"]}, "Duplicate groups"),
+            ({"generator-train": ["a"], "tokenizer-train": ["a"], "tuning": ["a"]}, "Training/tuning leakage"),
+        ):
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._write_inputs(root, groups)
+                with self.assertRaisesRegex(ValueError, message):
+                    _overfit_inputs(root)
 
 
 if __name__ == "__main__":
