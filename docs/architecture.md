@@ -84,15 +84,17 @@ optimizer step. Run it with `CUDA_VISIBLE_DEVICES=""` and
 Regression coverage independently changes prefix and target token IDs, replaces a
 checkpoint at the same path, and rejects legacy or altered cache payloads.
 
-`bash autoresearch.sh` now triggers the dedicated
-`ncm-fewnerd-cache-probe/full-probe` Concourse job. Its definition is
+`bash autoresearch.sh` triggers the
+`ncm-fewnerd-cache-probe/evaluate-saved-probe` Concourse job, which restores the
+completed training artifacts and evaluates without retraining. The pipeline also
+provides `full-probe` for a fresh complete run. Its definition is
 `concourse/fewnerd-probe.yml`; its dependency image is built from
 `concourse/fewnerd-probe.Dockerfile`, a frozen CPython 3.10 uv environment, and
 `uv.lock`, then pinned by `probe_image_digest`. The SHA-256-checked S3 input
 contains a source snapshot, cached GPT-2 tokenizer files, and Few-NERD train and
 validation parquet files; `probe_input_sha256` pins those bytes. Configure the
-pipeline with these two pins plus the existing MinIO and shared gpu-lock
-credentials. No credentials belong in the source bundle or image.
+pipeline with `concourse/fewnerd-probe-pins.yml` plus the existing MinIO and shared
+gpu-lock credentials. No credentials belong in the source bundle or image.
 
 Preflight checks dependencies, data, RAM, disk, and storage before acquiring the
 cross-pipeline `gpu-lock`. The untagged GPU task runs `scripts/fewnerd_probe.py`
@@ -111,6 +113,63 @@ the validated cache, manifest, raw predictions, and logs. After lock release,
 the pipeline packages and publishes these outputs, including on task failure.
 The full probe and held-out results must be reviewed before merging; passing
 cache acceptance alone does not establish training quality.
+
+The evaluator persists raw predictions before cache assertions and records
+separate CUDA diagnostics for original 64-row cache batches versus a seven-row
+representative batch, with cuDNN benchmarking on and off. The exact-context
+comparison retains `rtol=1e-5, atol=1e-6` and requires identical codes; cross-context
+differences and their generator-logit/loss effects are reported separately,
+not hidden by broadening the tolerance.
+
+**2026-10-31 measured result:** `full-probe/1` completed all 1,500 tokenizer and
+3,000 generator optimizer steps in the ordinary CUDA task on worker
+`d15be218e9bb`, with nine intermediate optimizer/RNG snapshots persisted. Final
+teacher-forced generator training loss was 1.3400; the training-time held-out
+check (256 examples) reported loss 1.3108 and code accuracy 81.55%.
+The job failed only at a final cross-batch embedding comparison, after scoring
+all 300 examples; its original failure remains autoresearch run #27.
+The checkpoints/cache were exported despite that failure.
+`evaluate-saved-probe/1` then succeeded using those artifacts, verified saved
+step counters, repeated evaluation without retraining, and released the shared
+lock normally. Both preflights passed all 12 regression tests.
+
+The recovered original-64-row computation matches cached codes and embeddings
+**exactly** (maximum embedding error 0). Recomputing the seven selected rows as
+one batch keeps codes exact but changes embeddings by up to 1.15335e-5
+(relative L2 error 1.84845e-6). Toggling cuDNN benchmarking did not change these
+diagnostics. On the measured generator consumer, predicted codes stayed equal,
+maximum logit delta was 0.0131836, and cross-entropy delta was 4.76837e-7.
+The original failed process observed a larger cross-batch maximum, 2.90871e-5;
+no tolerance was widened to erase either result.
+
+A CPU audit found 28 of the registered 300 validation prefixes also in the
+50,000-example generator training set. Both scores below use the same fixed
+predictions; the secondary subset excludes exact input overlap only, without
+prediction-based selection. The main 300-example result is unchanged.
+
+| Metric | Registered validation (300) | Unseen generator prefixes (272) |
+| --- | ---: | ---: |
+| Mean typed entity F1 (%) | 0.3333 | 0.3676 |
+| Exact entity-set match (%) | 0.3333 | 0.3676 |
+| Registered validity (%) | 98.6667 | 98.5294 |
+
+Across all 300, tokenizer non-PAD token accuracy was 88.9026%, tokenizer
+reconstruction entity F1 was 0.6667%, and teacher-forced code accuracy was
+81.5071%. Twenty-one validation target strings occur in tokenizer training;
+these are reported but not excluded, since shared entity names are normal in
+NER. High registered validity and code accuracy do **not** imply correct entity
+copying: only one generated entity set matched exactly.
+The full execution/evaluation gate is evidenced, but extraction quality remains
+poor; these results are not a quality approval for the training pipeline.
+
+Durable evidence is in private MinIO bucket `ncm-fewnerd-probes`:
+`fewnerd/results/fewnerd-probe-20261031T165937Z.tar.gz` (training checkpoints,
+cache, manifest, logs), `fewnerd/evaluations/fewnerd-evaluation-20261031T171103Z.tar.gz`
+(recovered raw predictions and CUDA diagnostics), and
+`fewnerd/final/fewnerd-probe-20261031T171103Z-report.tar.gz` (report plus split
+audit). Local copies are under `artifacts/fewnerd-probe-evaluation/`.
+Run `scripts/analyze_fewnerd_probe.py` with the evaluation and manifest paths to
+reproduce the CPU overlap audit against checksum-verified corpora.
 
 
 ```mermaid
