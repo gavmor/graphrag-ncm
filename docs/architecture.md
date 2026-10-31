@@ -132,6 +132,10 @@ consumer-logit diagnostics.
 `cache-validation.json` and `evaluation.json`'s `cache_validation` field now
 contain only evidence from required assertions that passed. A code or embedding
 mismatch in the supported comparison still fails the task.
+Saved-run validation also requires the persisted training cache file to exist:
+a missing file raises an error instead of building and validating a replacement.
+This post-merge guard is covered by the current 16-test CPU suite and a real-model
+present/missing-cache smoke; the historical pinned CUDA replay below predates it.
 
 The corrected check passed in `evaluate-saved-probe/3`: exact code equality for
 seven rebatched representative rows, plus exact fresh/cache code equality and
@@ -185,6 +189,10 @@ cache, manifest, logs), `fewnerd/evaluations/fewnerd-evaluation-20261031T171103Z
 audit). Local copies are under `artifacts/fewnerd-probe-evaluation/`.
 Run `scripts/analyze_fewnerd_probe.py` with the evaluation and manifest paths to
 reproduce the CPU overlap audit against checksum-verified corpora.
+
+For the next agent's bounded tokenizer-first model-quality study, see
+[the Few-NERD research proposal](fewnerd-model-quality-research-proposal.md).
+It is proposed future work, not an extension of the completed cache-validation run.
 
 
 ```mermaid

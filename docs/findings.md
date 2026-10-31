@@ -108,19 +108,31 @@ open-vocabulary entity names.
 - Benchmark files can be sorted (TACRED val), and train-split holdouts can leak (60.3 vs 44.7).
 - `_optimized_generate` silently ignored `cfg_scale`, temperature and top-k; any decode-knob sweep
   must first verify the knob changes outputs. Fixed and checked token-identical to the vendored path.
-- Harness logging records whichever task `autoresearch.sh` defaults to; confirm it matches the task
-  just trained. A discard resets the worktree and silently reverts in-progress edits.
+- Historical generic-harness runs could log a different task than the one just trained.
+  `autoresearch.sh` now replays the saved Few-NERD probe, not a generic task selector.
+  An autoresearch discard can reset uncommitted work; preserve experiment evidence separately.
 
 ## Reproducing
 
-Corpora are fetched into a separate worktree; set `NCM_CORPORA_ROOT` (see `autoresearch.sh`).
-Task names: `fewnerd_extraction`, `map_stage_hotpot`, `relation_tacred`, `report_multinews`.
-Train with `uv run python -m ncm_graphrag.ncm.train_tokenizer --task T` then `train_generator --task T`;
-score with `NCM_TASK=T bash autoresearch.sh`. Faithfulness: `scripts/judge_drafter.py` then
+Corpora are fetched into a separate worktree; set `NCM_CORPORA_ROOT` in the task environment.
+Task names include `fewnerd_extraction`, `map_stage_hotpot`, `relation_tacred`, and `report_multinews`.
+Inside an ordinary Concourse CUDA task holding the shared `gpu-lock`, train with
+`uv run python -m ncm_graphrag.ncm.train_tokenizer --task T` then
+`uv run python -m ncm_graphrag.ncm.train_generator --task T`; score with
+`NCM_TASK=T uv run python -m ncm_graphrag.benchmark`. These are task commands, not
+authorization for host-shell CUDA. `NCM_TASK=T bash autoresearch.sh` no longer selects
+that task: the harness triggers the pinned saved-probe evaluation described in
+[architecture.md](architecture.md). Faithfulness uses `scripts/judge_drafter.py` then
 `scripts/claim_judge.py` (needs `ANTHROPIC_API_KEY`; the script fails if its anchors miss calibration).
 Training knobs: `NCM_STEPS`, `NCM_BATCH_SIZE`, `NCM_LR`, `NCM_SEED`, `NCM_NA_FRACTION`,
 `NCM_COND_DROP`; decode knob `NCM_CFG_SCALE` (valid only for a model trained with `NCM_COND_DROP>0`).
-Checkpoints are not committed (`artifacts/` is ignored); the numbers above regenerate from the scripts.
+Checkpoints are not committed (`artifacts/` is ignored). Reproduce historical measurements
+from recorded source/config/checkpoint identities, not current defaults or filenames alone.
+
+The next Few-NERD model-quality campaign is specified in
+[the research proposal](fewnerd-model-quality-research-proposal.md). It separates
+the completed cache/probe work from unperformed quality experiments and defines
+the disjoint splits, tokenizer-first gates, controls, and execution safeguards.
 
 ## Addendum (after the first publication of this report)
 
