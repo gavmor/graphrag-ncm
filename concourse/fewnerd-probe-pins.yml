@@ -1,0 +1,4 @@
+# Private MinIO input: fewnerd/inputs/probe-inputs-1.0.3.tar.gz
+# Same dependency image used for both the full training run and recovery.
+probe_image_digest: sha256:a2cfb54d8a9da6517c4978f122d43176c06847440426728818e1226308659532
+probe_input_sha256: db740bbb4d0423f36b2ae50c1d38fa4943b48e04217a831d464948e6057711c7

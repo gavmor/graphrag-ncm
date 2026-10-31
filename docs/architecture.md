@@ -62,6 +62,131 @@ flowchart LR
 
 ## Slice 1 training pipeline (fills the gap: no official NCM trainer exists)
 
+`train_generator.py` precomputes frozen VQ-VAE codes and next-level embeddings
+in `<generator save_path>.cache.pt`. `NCM_GENERATOR_CACHE` overrides that path.
+The cache records SHA-256 identities for the tokenizer checkpoint bytes, loaded
+model state, and both complete tokenized prefix/target matrices (including dtype,
+shape, row order, padding, and EOS). Model architecture, quantizer levels, and a
+format version are also checked. Checkpoint weights must match the loaded model.
+Stored tensor checksums detect changed payloads.
+
+Changed checkpoints or tokenized data and legacy caches without provenance produce
+an error naming the cache. Remove that file and rerun training to rebuild; never
+reuse a pre-provenance cache. New files are written atomically. Cache construction
+uses eval mode, batches of 64, and CPU storage; training transfers only selected
+rows to the model device. Prefix embeddings remain computed online, preserving
+condition dropout and contextual-prefix behavior.
+
+The offline CPU acceptance workload (`scripts/autoresearch_cache_benchmark.py`)
+compares cached codes and embeddings with fresh VQ-VAE outputs and runs a generator
+optimizer step. Run it with `CUDA_VISIBLE_DEVICES=""` and
+`PYTHONPATH=third_party/ncm:src` using the project's uv environment.
+Regression coverage independently changes prefix and target token IDs, replaces a
+checkpoint at the same path, and rejects legacy or altered cache payloads.
+
+`bash autoresearch.sh` triggers the
+`ncm-fewnerd-cache-probe/evaluate-saved-probe` Concourse job, which restores the
+completed training artifacts and evaluates without retraining. The pipeline also
+provides `full-probe` for a fresh complete run. Its definition is
+`concourse/fewnerd-probe.yml`; its dependency image is built from
+`concourse/fewnerd-probe.Dockerfile`, a frozen CPython 3.10 uv environment, and
+`uv.lock`, then pinned by `probe_image_digest`. The SHA-256-checked S3 input
+contains a source snapshot, cached GPT-2 tokenizer files, and Few-NERD train and
+validation parquet files; `probe_input_sha256` pins those bytes. Configure the
+pipeline with `concourse/fewnerd-probe-pins.yml` plus the existing MinIO and shared
+gpu-lock credentials. No credentials belong in the source bundle or image.
+
+Preflight checks dependencies, data, RAM, disk, and storage before acquiring the
+cross-pipeline `gpu-lock`. The untagged GPU task runs `scripts/fewnerd_probe.py`
+in the foreground with `NVIDIA_VISIBLE_DEVICES=all`; it does not invoke ComfyUI
+or run a host-shell CUDA process. The task requests a 32 GiB host-memory limit.
+The probe fixes 1,500 tokenizer steps over 6,000 training examples and 3,000
+generator steps over 50,000 training examples, batch 128, learning rate 3e-4,
+tokenizer seed 0 and generator seed 1. The registered 300-example validation
+sample (seed 42) is scored without tuning. Reports include typed entity F1,
+exact matches, validity, tokenizer reconstruction quality, held-out code accuracy,
+and cache/fresh parity on representative training rows.
+
+Every 500 optimizer steps, model/optimizer/RNG snapshots are uploaded to the
+private `ncm-fewnerd-probes` MinIO bucket. Task outputs contain final checkpoints,
+the validated cache, manifest, raw predictions, and logs. After lock release,
+the pipeline packages and publishes these outputs, including on task failure.
+The full probe and held-out results must be reviewed before merging; passing
+cache acceptance alone does not establish training quality.
+
+The evaluator persists predictions before validating the cache. Current
+acceptance requires exact discrete-code equality when representative rows are
+rebatched, plus fresh codes and embeddings matching the original contiguous
+64-row cache batches (including the short final batch). Embedding comparisons
+retain `rtol=1e-5, atol=1e-6`. Recomputations use construction's
+`cudnn.benchmark=False` policy, then restore the decoder's previous setting.
+Autotuned evaluation can choose a different nearest code for boundary cases, so
+it is not the execution context against which the training cache is validated.
+The check covers every row of the selected cache batches, not just the selected
+rows.
+
+Floating-point embedding equality across different CUDA batch shapes is not a
+cache contract. That comparison and its misleading failure fields have been
+removed, along with alternating benchmark experiments and incidental
+consumer-logit diagnostics.
+`cache-validation.json` and `evaluation.json`'s `cache_validation` field now
+contain only evidence from required assertions that passed. A code or embedding
+mismatch in the supported comparison still fails the task.
+
+The corrected check passed in `evaluate-saved-probe/3`: exact code equality for
+seven rebatched representative rows, plus exact fresh/cache code equality and
+zero embedding error over 272 rows across the corresponding original cache
+batches. No tolerance was relaxed. The preflight passed all 13 regression tests,
+including deliberate incorrect codes and embeddings in full and partial cache
+batches. All 300 predictions and checkpoint identities remained unchanged.
+The current report is
+`fewnerd/evaluations/fewnerd-evaluation-20261031T173056Z.tar.gz` in the private
+`ncm-fewnerd-probes` bucket, with local copies under
+`artifacts/fewnerd-cache-validation-corrected/`. Earlier reports below are
+historical, not the current validation contract or status.
+
+**2026-10-31 measured result:** `full-probe/1` completed all 1,500 tokenizer and
+3,000 generator optimizer steps in the ordinary CUDA task on worker
+`d15be218e9bb`, with nine intermediate optimizer/RNG snapshots persisted. Final
+teacher-forced generator training loss was 1.3400; the training-time held-out
+check (256 examples) reported loss 1.3108 and code accuracy 81.55%.
+The original job's checker incorrectly required tight floating-point embedding
+equality across batch shapes, after scoring all 300 examples. That historical
+checker error remains in run #27's raw log; it is not a current cache failure.
+The checkpoints/cache were exported, and `evaluate-saved-probe/1` subsequently
+verified exact original-batch parity without retraining. Historical artifacts
+are retained rather than rewritten.
+
+A CPU audit found 28 of the registered 300 validation prefixes also in the
+50,000-example generator training set. Both scores below use the same fixed
+predictions; the secondary subset excludes exact input overlap only, without
+prediction-based selection. The main 300-example result is unchanged.
+
+| Metric | Registered validation (300) | Unseen generator prefixes (272) |
+| --- | ---: | ---: |
+| Mean typed entity F1 (%) | 0.3333 | 0.3676 |
+| Exact entity-set match (%) | 0.3333 | 0.3676 |
+| Registered validity (%) | 98.6667 | 98.5294 |
+
+Across all 300, tokenizer non-PAD token accuracy was 88.9026%, tokenizer
+reconstruction entity F1 was 0.6667%, and teacher-forced code accuracy was
+81.5071%. Twenty-one validation target strings occur in tokenizer training;
+these are reported but not excluded, since shared entity names are normal in
+NER. High registered validity and code accuracy do **not** imply correct entity
+copying: only one generated entity set matched exactly.
+The full execution/evaluation gate is evidenced, but extraction quality remains
+poor; these results are not a quality approval for the training pipeline.
+
+Durable evidence is in private MinIO bucket `ncm-fewnerd-probes`:
+`fewnerd/results/fewnerd-probe-20261031T165937Z.tar.gz` (training checkpoints,
+cache, manifest, logs), `fewnerd/evaluations/fewnerd-evaluation-20261031T171103Z.tar.gz`
+(recovered raw predictions and CUDA diagnostics), and
+`fewnerd/final/fewnerd-probe-20261031T171103Z-report.tar.gz` (report plus split
+audit). Local copies are under `artifacts/fewnerd-probe-evaluation/`.
+Run `scripts/analyze_fewnerd_probe.py` with the evaluation and manifest paths to
+reproduce the CPU overlap audit against checksum-verified corpora.
+
+
 ```mermaid
 flowchart TB
     D[Synthetic map-stage dataset\nsrc/ncm_graphrag/data/map_stage.py] --> T1[train_tokenizer.py\nVQVAE recon CE + internal vq_loss\n3000 steps, ~1 min]
