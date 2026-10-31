@@ -1,0 +1,180 @@
+{
+  "counts": {
+    "examples": 32,
+    "entity_set_exact": 32,
+    "names": 44,
+    "names_exact": 44,
+    "multi_subword_names": 42,
+    "multi_subword_names_exact": 42
+  },
+  "entity_set_exact_percent": 100.0,
+  "multi_subword_exact_name_recall_percent": 100.0,
+  "gate_passed": true,
+  "predictions": [
+    {
+      "group_id": "8cc8abc9cb1466537d0479582f5c0faefce43315a4f985571577f5b409257bc4",
+      "gold": "(\"entity\"<|>Ghazni Province<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Ghazni Province<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "02e27d15ff887b2a02678338a91465aad714bcfa39598020d287aed4cac2626c",
+      "gold": "(\"entity\"<|>United States<|>LOCATION<|>Mentioned in the text.)##(\"entity\"<|>Latin American<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>United States<|>LOCATION<|>Mentioned in the text.)##(\"entity\"<|>Latin American<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "c136d655f2d5cd727907a4d3ce6c90dafaec558f66534cdcc2b1fd18d0042f79",
+      "gold": "(\"entity\"<|>Golden Chest<|>OTHER<|>Mentioned in the text.)##(\"entity\"<|>Antonio Frazzi<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Golden Chest<|>OTHER<|>Mentioned in the text.)##(\"entity\"<|>Antonio Frazzi<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "3388cf280d9d326d640a1cbe11b5895d95b87020629db2e19fa7ad4d01124e9a",
+      "gold": "(\"entity\"<|>Visceral Games<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Visceral Games<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "83c38b0fcf847bfc1e7bce1b5142a266ec0057ecdf3f5dda4916bc8a56eed5be",
+      "gold": "(\"entity\"<|>seizure<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>seizure<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "6cbe2d0566407964b7fe5383ac4fde0f0f34d2aaf34bf58bc23b1f8fd7d01871",
+      "gold": "(\"entity\"<|>Trevi Fountain<|>BUILDING<|>Mentioned in the text.)##(\"entity\"<|>China<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Trevi Fountain<|>BUILDING<|>Mentioned in the text.)##(\"entity\"<|>China<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "f0fe6fb9c0cb4a6bd18f8b93c7378069b14715a4c5a17a65208ce80cbf683f72",
+      "gold": "(\"entity\"<|>the Monju project<|>PRODUCT<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>the Monju project<|>PRODUCT<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "ea3c499c38924f8df553161369c5caf7fa26089d4f2b376c002e611be7bdfeb7",
+      "gold": "(\"entity\"<|>retinoids<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>retinoids<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "d3b546d05a882f0052d867ff040cab9ba5088687b89065676fe65ee6ad89d060",
+      "gold": "(\"entity\"<|>Kingsway Tramway Subway<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Kingsway Tramway Subway<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "3bf0409aa5cf48b4f8ef4a8d3ac0d0ca15746df90c8148a8da583e3165aa7ac0",
+      "gold": "(\"entity\"<|>Tarquinius Superbus<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Tarquinius Superbus<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "5069cc96f08bb3524e013cc1b5b67f4e0a116b0040b8afae90055c0b06a23fd9",
+      "gold": "(\"entity\"<|>Daily Mirror<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Daily Mirror<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "062582bc1b7e52051fe76bc1d7f5836e6078f1ce31285ef4881071f4647fd45f",
+      "gold": "(\"entity\"<|>Dirge Rep<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Dirge Rep<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "57f6b98127738191705eb190ba10539997b13bc3b6f4235e1a0dcd49249ad594",
+      "gold": "(\"entity\"<|>World War II<|>EVENT<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>World War II<|>EVENT<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "c2b6ce042377a4ca70979c727997d13efcb392b21c0a7b1ced4bdf0094534f2e",
+      "gold": "(\"entity\"<|>Toulon High School<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Toulon High School<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "f518a3d3f9fe0ce5c490287fc30531982715976764c5e749d860267d4a083639",
+      "gold": "(\"entity\"<|>Church Slavonic<|>OTHER<|>Mentioned in the text.)##(\"entity\"<|>Slavonic<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Church Slavonic<|>OTHER<|>Mentioned in the text.)##(\"entity\"<|>Slavonic<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "69efce6890d793ae0ea6b61adbd9e0e3f5d9d521b6aa314b70cedae2bbf4d43c",
+      "gold": "(\"entity\"<|>Telugu Desam<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Telugu Desam<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "da4687c3faff0eb89867b87ffdae3b95af7e22c61c2ddb8986830b5cf96fef24",
+      "gold": "(\"entity\"<|>Tsuei<|>PERSON<|>Mentioned in the text.)##(\"entity\"<|>Kirtley<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Tsuei<|>PERSON<|>Mentioned in the text.)##(\"entity\"<|>Kirtley<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "937c5f01e825ce88b9cd204b245f117b3c2338de90247a33e9548b9531dde16f",
+      "gold": "(\"entity\"<|>Luftwaffe of Nazi Germany<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Luftwaffe of Nazi Germany<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "77fcb77b270174a43e899fd45b98adbdd60124aabc5b77c148e1325c0abf6fd5",
+      "gold": "(\"entity\"<|>Algonquian Powhatan<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Algonquian Powhatan<|>OTHER<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "ff730592fb097a2f6e538e0d22f3725d8f3f9ad15fcc1d812dfed8dea8d7714e",
+      "gold": "(\"entity\"<|>New York<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>New York<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "354d8d6aef05020c9933bc90f707602f48265848df386a5fb4ee825386323456",
+      "gold": "(\"entity\"<|>MySQL AB<|>ORGANIZATION<|>Mentioned in the text.)##(\"entity\"<|>Sun<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>MySQL AB<|>ORGANIZATION<|>Mentioned in the text.)##(\"entity\"<|>Sun<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "b95c7672c177fdb19958ba3a39e5a817bf69721440185ae4b50c61dedea0622d",
+      "gold": "(\"entity\"<|>Rooney<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Rooney<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "2a6df411af62a56c190dd39e961903793fcf6ce4166050483afc6906e18a9b5e",
+      "gold": "(\"entity\"<|>Story Bridge Adventure Climb<|>LOCATION<|>Mentioned in the text.)##(\"entity\"<|>Abseil Climb<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Story Bridge Adventure Climb<|>LOCATION<|>Mentioned in the text.)##(\"entity\"<|>Abseil Climb<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "418fe6da790db6587149fc2cab502b7a268a87ad61b12aee6d48cdd32c4b4896",
+      "gold": "(\"entity\"<|>Pentecostal<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Pentecostal<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "40ed2eab10d4f0ddd1dd413ee7d152448301978a3d9bce1679313e53556ff8e6",
+      "gold": "(\"entity\"<|>Craigleith Quarry<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Craigleith Quarry<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "92c2ac9db206ef130f90d35f004e21044bf3ee2ceb4138a15470300ae9c5353e",
+      "gold": "(\"entity\"<|>All Blacks<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>All Blacks<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "6ae9287bc5e86fe8352ce7d0fe17a78770c1d25bf865b894bdc38327d5f88e2f",
+      "gold": "(\"entity\"<|>University College , Oxford<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>University College , Oxford<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "eea0c2f62c627f3ef09d035baf414ec64d4383d82952bfa47d95d5748234da2d",
+      "gold": "(\"entity\"<|>the Carlsbad Marathon<|>EVENT<|>Mentioned in the text.)##(\"entity\"<|>Wroc\u0142aw Marathon<|>EVENT<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>the Carlsbad Marathon<|>EVENT<|>Mentioned in the text.)##(\"entity\"<|>Wroc\u0142aw Marathon<|>EVENT<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "0562e06c5521ec49c5b6759de72f2c5a8e8a365816582079ead05d4bc5672bc8",
+      "gold": "(\"entity\"<|>Marine Division<|>ORGANIZATION<|>Mentioned in the text.)##(\"entity\"<|>Selden<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Marine Division<|>ORGANIZATION<|>Mentioned in the text.)##(\"entity\"<|>Selden<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "249665904b5223e470ec28b78fdc07e7f4e0d655db786e5619f95d0ea3d80162",
+      "gold": "(\"entity\"<|>Bourke<|>PERSON<|>Mentioned in the text.)##(\"entity\"<|>Balmain Tigers team<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Bourke<|>PERSON<|>Mentioned in the text.)##(\"entity\"<|>Balmain Tigers team<|>ORGANIZATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "32c5a88d61beb96d60a917227ac0f16307e38b737a479040df4d82f2bb80b91e",
+      "gold": "(\"entity\"<|>Chevrolet<|>PERSON<|>Mentioned in the text.)##(\"entity\"<|>Pontiac<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Chevrolet<|>PERSON<|>Mentioned in the text.)##(\"entity\"<|>Pontiac<|>PERSON<|>Mentioned in the text.)##<|COMPLETE|>"
+    },
+    {
+      "group_id": "01c4d96e9e8def54d6dd413ea7d3733658462416eaec5ec18e3c8ba42f80fde6",
+      "gold": "(\"entity\"<|>Typhoon Gay<|>EVENT<|>Mentioned in the text.)##(\"entity\"<|>Gulf of Thailand<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>",
+      "prediction": "(\"entity\"<|>Typhoon Gay<|>EVENT<|>Mentioned in the text.)##(\"entity\"<|>Gulf of Thailand<|>LOCATION<|>Mentioned in the text.)##<|COMPLETE|>"
+    }
+  ],
+  "limitation": "Fit on these same 32 targets only; not generalization or arbitrary-name copying.",
+  "training_wall_seconds_including_checkpoints": 96.42817859399656,
+  "peak_cuda_allocated_bytes": 2415576576,
+  "peak_cuda_reserved_bytes": 2795503616,
+  "completed_steps": 2000
+}

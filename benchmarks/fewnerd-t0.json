@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "arm": "T0",
+  "frozen_inputs": "fewnerd-protected",
+  "training_manifest_sha256": "aa34ee63ae005cc2c5dbd24f05c62ff1824556248d07703848cc09f40b44342a",
+  "tuning_manifest_sha256": "2175b2433251ba7f098d69299f651545b03d35e22daffe1a0ba055cfa8b8a80e",
+  "tiny_control_receipt": "fewnerd-tiny-control.json",
+  "tiny_control_sha256": "daa80237848593db5aeb7ee8af2c4562215116771c6eb7006ad3c017b1134952",
+  "steps": 6000,
+  "batch_size": 128,
+  "learning_rate": 0.0003,
+  "weight_decay": 0.01,
+  "gradient_clip": 1.0,
+  "initialization_seed": 0,
+  "sampling_seed": 0,
+  "sampling_rng": "Independent CPU torch.Generator; randint with replacement; stored row order",
+  "checkpoint_every": 500,
+  "evaluation_steps": [
+    1500,
+    3000,
+    6000
+  ],
+  "evaluation_device": "cpu",
+  "evaluation_batch_size": 8,
+  "evaluation_threads_per_worker": 1,
+  "evaluation_workers": 3,
+  "checkpoint_selection": "Highest tuning mean per-example typed entity-set F1; ties earlier",
+  "continuation_entity_f1_percent": 90,
+  "continuation_target_exact_percent": 80,
+  "loss": "Mean reconstruction CE over all80 positions plus unchanged VQ loss",
+  "precision": "float32; TF32 disabled; deterministic algorithms; cuDNN benchmark false"
+}

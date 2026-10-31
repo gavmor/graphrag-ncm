@@ -231,6 +231,33 @@ The next eligible study is the predeclared T0 schedule on the frozen 6,000 rows,
 with 1,500/3,000/6,000-step tuning checkpoints and the earlier-checkpoint tie rule.
 It was not authorized or started by the bounded-control approval.
 
+### Predeclared T0 schedule
+
+`benchmarks/fewnerd-t0.json` freezes the T0 schedule and pins the passed tiny-control
+receipt. `python -m ncm_graphrag.ncm.fewnerd_t0 --protocol benchmarks/fewnerd-t0.json
+--preflight` validates protected-protocol identity, the original train/tuning hashes,
+the tiny gate, serialization and scorer oracle before any GPU allocation. T0 trains
+from scratch on all 6,000 frozen targets for exactly 6,000 updates, batch 128,
+learning rate 3e-4. CPU batch sampling uses a separately seeded generator with
+replacement; its state and CPU/CUDA RNG states are persisted alongside model and
+optimizer every 500 steps. This isolates data sampling from model initialization and
+dropout; it is not an exact replay of a historical shared RNG stream.
+
+The `ncm-fewnerd-t0/schedule-control` Concourse job uses the existing pinned image
+and shared GPU lock. Its separate, CPU-only evaluator runs after lock release, on
+all 6,000 training and 1,000 tuning rows at exactly 1,500/3,000/6,000 steps.
+It uses three independent processes, each with one CPU thread and greedy batches
+of eight; it does not alter training state. Selection maximizes historical
+mean-per-example typed entity F1 on tuning, ties favoring the earlier checkpoint.
+The selected checkpoint passes the proposed gate only if tuning F1 is at least
+90% **and** literal target exactness at least 80%.
+
+The evaluation reports name-length, seen/unseen name and typed-set scores,
+subword exposure, type and EOS accuracy, reconstruction/VQ losses, per-level code
+utilization, and raw reconstructions. The held-out official-test sample is not
+evaluated. T0 is a single controlled schedule, not permission for an automatic
+loss ablation, generator run, or seed replication.
+
 Historical replay remains available explicitly through
 `fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.
 That job restores the completed historical checkpoints without retraining; it
