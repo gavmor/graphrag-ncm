@@ -3,13 +3,14 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
 from models.vqvae import VQVAE
 
 from ncm_graphrag.ncm.config import build_tokenizer_cfg
 from ncm_graphrag.ncm.generator_cache import load_or_build_cache
-from scripts.fewnerd_probe import _validate_cached_values
+from scripts.fewnerd_probe import _validate_cached_values, validate_cache
 
 
 def tiny_tokenizer_cfg():
@@ -88,6 +89,16 @@ class GeneratorCacheTests(unittest.TestCase):
         torch.save(payload, self.cache)
         with self.assertRaisesRegex(ValueError, "contents changed"):
             self.load()
+
+    def test_probe_validation_requires_persisted_training_cache(self):
+        cfg = tiny_tokenizer_cfg()
+        cfg.save_path = str(self.checkpoint)
+        tokenizer = SimpleNamespace(pad_token_id=0, eos_token_id=1, encode=lambda text: [2, 3])
+        example = SimpleNamespace(prefix_text="prefix", target_text="target")
+        spec = SimpleNamespace(generator_n_examples=5, generate_examples=lambda n, seed: [example] * n)
+        generator = SimpleNamespace(vqvae=self.vq, pre_tok=tokenizer)
+        with self.assertRaisesRegex(FileNotFoundError, "Persisted training cache"):
+            validate_cache(generator, spec, cfg, SimpleNamespace(prefix_len=4), Path(self.tmp.name))
 
     def test_mathematical_validation_rejects_wrong_values_in_full_and_partial_batches(self):
         # Cover a complete middle batch and the final two-row cache batch.

@@ -198,11 +198,14 @@ def _validate_cached_values(vqvae, target, cache):
 
 
 def validate_cache(generator, spec, tokenizer_cfg, model_cfg, root):
+    cache_path = root / "generator.cache.pt"
+    if not cache_path.is_file():
+        raise FileNotFoundError(f"Persisted training cache is missing: {cache_path}. Validation will not rebuild it.")
     prefix, target = train_generator._build_dataset(
         spec, model_cfg.prefix_len, tokenizer_cfg.vqvae.context_length, generator.pre_tok
     )
     # Validate complete provenance and stored checksums before checking values.
-    cache = load_or_build_cache(generator.vqvae, tokenizer_cfg.save_path, prefix, target, root / "generator.cache.pt")
+    cache = load_or_build_cache(generator.vqvae, tokenizer_cfg.save_path, prefix, target, cache_path)
     validation = _validate_cached_values(generator.vqvae, target, cache)
     (root / "cache-validation.json").write_text(json.dumps(validation, indent=2) + "\n")
     print("CACHE_VALIDATION " + json.dumps(validation), flush=True)
