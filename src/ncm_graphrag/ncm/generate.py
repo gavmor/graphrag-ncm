@@ -160,13 +160,13 @@ class NCMTaskGenerator:
             B = prefix_tokens.shape[0]
             nlev = len(net_ref.levels)
 
-            def _mix(lg: torch.Tensor, level: int) -> torch.Tensor:
-                """Vendored guidance: (1+t)*cond - t*uncond, t = scale * level/(nlev-1)."""
-                if not guided:
-                    return lg
-                t = cfg_scale * (level / max(nlev - 1, 1))
-                g = (1.0 + t) * lg[:B0] - t * lg[B0:]
-                return torch.cat([g, g], dim=0)
+            def _sample(lg: torch.Tensor, level: int) -> torch.Tensor:
+                """Apply guidance before sampling, sharing sampled codes across CFG branches."""
+                if guided:
+                    t = cfg_scale * (level / max(nlev - 1, 1))
+                    lg = (1.0 + t) * lg[:B0] - t * lg[B0:]
+                sampled = net_ref._sample_level_raw(lg, temperature, top_k, top_p)
+                return torch.cat([sampled, sampled], dim=0) if guided else sampled
 
             z_hat = torch.zeros(B, net_ref.levels[-1], self.vqvae.embed_dim, device=dev)
 
@@ -188,7 +188,7 @@ class NCMTaskGenerator:
             h = torch.cat([prefix_emb, q], dim=1)
             m0 = net_ref._base_m0 + F.pad(_pbias, (0, l0))
             h = compiled_stack(h, m0, net_ref.rope_cos_gen_0, net_ref.rope_sin_gen_0)
-            idx_lvl0 = _mix(net_ref.lm_heads[0](h[:, p_len:, :]), 0).argmax(dim=-1)
+            idx_lvl0 = _sample(net_ref.lm_heads[0](h[:, p_len:, :]), 0)
 
             generated_idx = [idx_lvl0]
             idx_next = idx_lvl0
@@ -203,7 +203,7 @@ class NCMTaskGenerator:
                 )
                 _hi = level_idx + 1
                 logits = net_ref._decode_level_logits(x_next, prefix_emb, level_idx, _pbias, hidx=_hi)
-                idx_next = _mix(logits, level_idx + 1).argmax(dim=-1)
+                idx_next = _sample(logits, level_idx + 1)
                 generated_idx.append(idx_next)
                 level_acum += net_ref.levels[level_idx + 1]
 
