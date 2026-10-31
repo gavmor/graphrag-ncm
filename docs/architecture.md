@@ -77,12 +77,40 @@ uses eval mode, batches of 64, and CPU storage; training transfers only selected
 rows to the model device. Prefix embeddings remain computed online, preserving
 condition dropout and contextual-prefix behavior.
 
-The offline CPU acceptance workload (`bash autoresearch.sh`) compares cached codes
-and embeddings with fresh VQ-VAE outputs and runs a generator optimizer step.
+The offline CPU acceptance workload (`scripts/autoresearch_cache_benchmark.py`)
+compares cached codes and embeddings with fresh VQ-VAE outputs and runs a generator
+optimizer step. Run it with `CUDA_VISIBLE_DEVICES=""` and
+`PYTHONPATH=third_party/ncm:src` using the project's uv environment.
 Regression coverage independently changes prefix and target token IDs, replaces a
-checkpoint at the same path, and rejects legacy or altered cache payloads. These
-checks do not establish training quality: the full 1,500/3,000-step probe and
-held-out evaluation remain required before merging the training pipeline.
+checkpoint at the same path, and rejects legacy or altered cache payloads.
+
+`bash autoresearch.sh` now triggers the dedicated
+`ncm-fewnerd-cache-probe/full-probe` Concourse job. Its definition is
+`concourse/fewnerd-probe.yml`; its dependency image is built from
+`concourse/fewnerd-probe.Dockerfile`, a frozen CPython 3.10 uv environment, and
+`uv.lock`, then pinned by `probe_image_digest`. The SHA-256-checked S3 input
+contains a source snapshot, cached GPT-2 tokenizer files, and Few-NERD train and
+validation parquet files; `probe_input_sha256` pins those bytes. Configure the
+pipeline with these two pins plus the existing MinIO and shared gpu-lock
+credentials. No credentials belong in the source bundle or image.
+
+Preflight checks dependencies, data, RAM, disk, and storage before acquiring the
+cross-pipeline `gpu-lock`. The untagged GPU task runs `scripts/fewnerd_probe.py`
+in the foreground with `NVIDIA_VISIBLE_DEVICES=all`; it does not invoke ComfyUI
+or run a host-shell CUDA process. The task requests a 32 GiB host-memory limit.
+The probe fixes 1,500 tokenizer steps over 6,000 training examples and 3,000
+generator steps over 50,000 training examples, batch 128, learning rate 3e-4,
+tokenizer seed 0 and generator seed 1. The registered 300-example validation
+sample (seed 42) is scored without tuning. Reports include typed entity F1,
+exact matches, validity, tokenizer reconstruction quality, held-out code accuracy,
+and cache/fresh parity on representative training rows.
+
+Every 500 optimizer steps, model/optimizer/RNG snapshots are uploaded to the
+private `ncm-fewnerd-probes` MinIO bucket. Task outputs contain final checkpoints,
+the validated cache, manifest, raw predictions, and logs. After lock release,
+the pipeline packages and publishes these outputs, including on task failure.
+The full probe and held-out results must be reviewed before merging; passing
+cache acceptance alone does not establish training quality.
 
 
 ```mermaid
