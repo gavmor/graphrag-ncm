@@ -1,0 +1,53 @@
+{
+  "annotation_signature": "SHA256 of canonical-text character spans [start,end,coarse_type], retaining all raw mentions",
+  "conflict_policy": "Quarantine globally when any raw coarse span annotation differs, including converter-ineligible rows",
+  "globally_conflicting_groups": 2384,
+  "identity_only_exclusions_can_overlap_conflict_counts": true,
+  "row_id_convention": "official split name:zero-based parquet row ordinal",
+  "splits": {
+    "test": {
+      "conflicting_groups": 836,
+      "conflicting_rows": 936,
+      "duplicate_rows": 588,
+      "prior_split_identity_excluded_groups": 4084,
+      "prior_split_identity_excluded_rows": 4138,
+      "raw_rows": 37648,
+      "raw_unique_groups": 37060,
+      "remaining_groups_after_identity_and_conflict_filters": 32885,
+      "remaining_groups_identity_only": 32976
+    },
+    "train": {
+      "clean_eligible_unique_groups": 49026,
+      "conflicting_groups": 2188,
+      "conflicting_rows": 3523,
+      "duplicate_rows": 6657,
+      "eligible_conflicting_groups": 973,
+      "eligible_prior_split_identity_groups": 0,
+      "eligible_rows_before_group_filters": 52458,
+      "eligible_unique_groups_before_filters": 49999,
+      "prior_split_identity_excluded_groups": 0,
+      "prior_split_identity_excluded_rows": 0,
+      "raw_rows": 131767,
+      "raw_unique_groups": 125110,
+      "remaining_groups_after_identity_and_conflict_filters": 122922,
+      "remaining_groups_identity_only": 125110
+    },
+    "validation": {
+      "clean_eligible_unique_groups": 6612,
+      "conflicting_groups": 451,
+      "conflicting_rows": 474,
+      "duplicate_rows": 145,
+      "eligible_conflicting_groups": 164,
+      "eligible_prior_split_identity_groups": 715,
+      "eligible_rows_before_group_filters": 7428,
+      "eligible_unique_groups_before_filters": 7370,
+      "prior_split_identity_excluded_groups": 1823,
+      "prior_split_identity_excluded_rows": 1840,
+      "raw_rows": 18824,
+      "raw_unique_groups": 18679,
+      "remaining_groups_after_identity_and_conflict_filters": 16751,
+      "remaining_groups_identity_only": 16856
+    }
+  },
+  "test_eligibility_computed": false
+}

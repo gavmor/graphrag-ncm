@@ -2,7 +2,7 @@
 
 > [!CAUTION]
 > **GPU HYGIENE / CONCURRENCY NOTICE**
-> Never run benchmarks or GPU-intensive scripts (such as `autoresearch.sh`) bare on the host. The local RTX 3090 is shared with Concourse CI pipelines and local services. Bare execution causes contention and process eviction (e.g. OOM / exit 137). All GPU workloads must be scheduled through Concourse or run under the `gpu-lock` mutex.
+> Never run GPU-intensive benchmarks or training bare on the host. The local RTX 3090 is shared with Concourse CI pipelines and local services. GPU workloads must use lock-protected Concourse tasks. `bash autoresearch.sh` is an explicit exception for **offline CPU-only evaluation**: it hides CUDA and performs no training or scheduling.
 
 Exploring [HazyResearch/ncm](https://github.com/HazyResearch/ncm) (Next-Concept
 Modeling: parallel, coarse-to-fine, non-autoregressive text generation) as an

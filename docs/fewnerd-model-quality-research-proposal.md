@@ -124,7 +124,7 @@ Start a new worktree from merged `main`; preserve the cache and sampling fixes. 
 
 ### Existing entrypoints are historical, not a new research runner
 
-- `bash autoresearch.sh` currently triggers `ncm-fewnerd-cache-probe/evaluate-saved-probe`. It replays saved checkpoints from the old source/data protocol; it does **not** train the checked-out code or honor `NCM_TASK=T` as a generic task selector.
+- At proposal time, `bash autoresearch.sh` triggered `ncm-fewnerd-cache-probe/evaluate-saved-probe`. That job replays saved checkpoints from the old source/data protocol; it does **not** train the checked-out code or honor `NCM_TASK=T` as a generic task selector. The new offline CPU-only quality harness and its untrained control are documented in [architecture.md](architecture.md); no Phase B training result is implied.
 - The pinned `1.0.3` input predates `main`'s sampling fix and the post-merge missing-cache guard. Replaying it does not validate those changes on merged `main`. Create a new immutable source/data archive containing the merged revision and new tests, record its SHA-256, and update the resource/file references and pins together.
 - [fewnerd_probe.py](../scripts/fewnerd_probe.py) hardcodes 1,500/3,000 steps, seeds, batch/LR, checkpoint expectations, and the old evaluation callback. It overwrites `NCM_STEPS`. The ordinary tokenizer trainer has no `NCM_STEPS` override. Implement explicit experiment configuration and frozen-manifest inputs before attempting the proposed schedules; do not invent CLI flags or assume an exported variable changed the run.
 - The registry's Few-NERD defaults are 6,000 tokenizer / 12,000 generator steps, not what the short probe ran. Changing a default must not silently change historical replay.

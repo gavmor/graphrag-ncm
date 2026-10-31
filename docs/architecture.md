@@ -84,17 +84,55 @@ optimizer step. Run it with `CUDA_VISIBLE_DEVICES=""` and
 Regression coverage independently changes prefix and target token IDs, replaces a
 checkpoint at the same path, and rejects legacy or altered cache payloads.
 
-`bash autoresearch.sh` triggers the
-`ncm-fewnerd-cache-probe/evaluate-saved-probe` Concourse job, which restores the
-completed training artifacts and evaluates without retraining. The pipeline also
-provides `full-probe` for a fresh complete run. Its definition is
-`concourse/fewnerd-probe.yml`; its dependency image is built from
-`concourse/fewnerd-probe.Dockerfile`, a frozen CPython 3.10 uv environment, and
-`uv.lock`, then pinned by `probe_image_digest`. The SHA-256-checked S3 input
-contains a source snapshot, cached GPT-2 tokenizer files, and Few-NERD train and
-validation parquet files; `probe_input_sha256` pins those bytes. Configure the
-pipeline with `concourse/fewnerd-probe-pins.yml` plus the existing MinIO and shared
-gpu-lock credentials. No credentials belong in the source bundle or image.
+`bash autoresearch.sh` now runs `scripts/autoresearch_fewnerd_quality.py` locally,
+offline and CPU-only, with CUDA hidden and one Torch thread. It never trains,
+downloads, or schedules a GPU job. Primary `tokenizer_entity_f1` is mean
+per-example typed entity-set reconstruction F1 in percentage points, using greedy
+token decoding. Its initial model is an explicitly labeled seed-0 **untrained
+control**, not either unverified local checkpoint or the historical probe.
+
+`benchmarks/fewnerd/frozen.json` pins the copied GPT-2 assets and stored row/token
+manifests. Raw input identity is SHA-256 over NFC/collapsed-whitespace text,
+preserving case and excluding labels. Conflicting raw annotations are quarantined
+globally before eligibility filtering; tuning excludes every raw official-train
+identity. The available clean generator pool is 49,026 groups (all retained),
+with its first 6,000 seed-0 selected rows used by the tokenizer, and 1,000
+seed-42 tuning groups. These are sentence-disjoint, not document-disjoint.
+The raw audit found 2,384 globally conflicting groups. Reserved-test selection
+and predictions remain deferred pending historical-use clearance.
+
+The executable scorer oracle must reach 100% F1, entity-set exactness, and strict
+grammar validity. The train-only grounded dictionary freezes Unicode/boundary,
+longest-span-first, candidate-type, and tie rules in
+`src/ncm_graphrag/data/fewnerd_quality_metrics.py`; initial tuning F1 is 36.35%.
+The report at `artifacts/fewnerd-quality-harness/report.json` records raw
+reconstructions, literal GPT-2 name-token alignment/exposure, seen/unseen and
+one/two-entity diagnostics, separate CE/VQ losses, EOS behavior, utilization,
+and both historical and strict validity. A first-32-row training diagnostic
+does **not** replace the proposal's trained tiny-set overfit control.
+
+With no `benchmarks/fewnerd/candidate.pt`, evaluation reconstructs the untrained
+seed-0 control. A candidate requires `candidate.provenance.json` with
+`kind: controlled_tokenizer`, positive `completed_steps`, `initialization_seed`,
+`checkpoint_sha256`, `training_manifest_sha256` matching `tokenizer-train.jsonl`,
+and the resolved `vqvae_config`. Missing/mismatched provenance, changed frozen
+inputs, leakage, architecture changes, or non-finite outputs fail closed.
+Training and the proposal's continuation gates have not been exercised.
+Inputs can be recreated offline with
+`PYTHONPATH=third_party/ncm:src uv run --offline --frozen python
+scripts/prepare_fewnerd_quality_inputs.py --corpus-root /path/to/corpora
+--output /path/to/new/frozen-directory`; it refuses to overwrite a nonempty
+directory. Input source hashes describe preparation; report source hashes identify
+the code actually evaluated.
+
+Historical replay remains available explicitly through
+`fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.
+That job restores the completed historical checkpoints without retraining; it
+does not evaluate the checked-out quality harness. The pipeline also provides
+`full-probe` with its historical fixed schedule. Its definition remains
+`concourse/fewnerd-probe.yml`, using `concourse/fewnerd-probe.Dockerfile`,
+`uv.lock`, `concourse/fewnerd-probe-pins.yml`, the existing MinIO credentials,
+and the shared GPU lock. Historical resource pins and checkpoints are unchanged.
 
 Preflight checks dependencies, data, RAM, disk, and storage before acquiring the
 cross-pipeline `gpu-lock`. The untagged GPU task runs `scripts/fewnerd_probe.py`

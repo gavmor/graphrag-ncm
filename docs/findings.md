@@ -109,7 +109,10 @@ open-vocabulary entity names.
 - `_optimized_generate` silently ignored `cfg_scale`, temperature and top-k; any decode-knob sweep
   must first verify the knob changes outputs. Fixed and checked token-identical to the vendored path.
 - Historical generic-harness runs could log a different task than the one just trained.
-  `autoresearch.sh` now replays the saved Few-NERD probe, not a generic task selector.
+  The historical saved-probe replay remains an explicit Concourse job. Current
+  `autoresearch.sh` instead evaluates frozen Few-NERD inputs offline on CPU, starting
+  from an identified untrained control unless a provenance-checked candidate is supplied.
+  This harness baseline is not a new trained-model quality result.
   An autoresearch discard can reset uncommitted work; preserve experiment evidence separately.
 
 ## Reproducing
