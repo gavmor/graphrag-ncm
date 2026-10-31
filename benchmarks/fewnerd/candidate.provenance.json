@@ -1,7 +1,7 @@
 {
   "kind": "controlled_tokenizer",
   "arm": "T0",
-  "completed_steps": 1500,
+  "completed_steps": 6000,
   "initialization_seed": 0,
   "sampling_seed": 0,
   "training_rows": 6000,
@@ -59,11 +59,11 @@
       }
     }
   },
-  "checkpoint_sha256": "d1f17d510d232c09082a0a7ed91d1acf437e3e93e456b53bb0a260fe6182db1b",
-  "training_snapshot_sha256": "4035fc8312942771310f56d3457c7de74cdf5f151618766477706fcf256e3e0f",
+  "checkpoint_sha256": "7222668b7bfe3e9c0a82ff703132f76777270abafeb1e35575bd057eccb3ca2d",
+  "training_snapshot_sha256": "eb24d72a629693522d49a6a9b363daaa850cef0f7619a688fbfa1d4dc40390a7",
   "protocol_sha256": "153ae389302874763edcc27b917625758ddcbc9dc3509a417b364e589d2fd588",
   "input_archive_sha256": "5300b43f034d4d8e5c5149f09a910859eddafd95f0452859816c524a1b083e2d",
   "image_digest": "sha256:1043ce3c732b23d36524ff9a845e03872c8ea0e039425cd68f839f1f10432545",
-  "evaluation_role": "predeclared_1500_checkpoint",
+  "evaluation_role": "tuning_selected",
   "selection_rule": "Highest tuning mean per-example typed entity-set F1; ties earlier"
 }
