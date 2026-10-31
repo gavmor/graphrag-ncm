@@ -1,0 +1,17 @@
+{
+  "recorded_research_clearance": "confirmed",
+  "scope": "Recorded Few-NERD research in this complete repository history, current source/docs, pinned historical source/data bundle, and corrected durable probe evaluation. No prior official-test selection or prediction use found in that record.",
+  "evidence": [
+    {"kind": "repository_history", "revision": "d6ed0499096b", "shallow_repository": false, "check": "git log --all -G eval_examples.*test|fewnerd.*test over Few-NERD converter, probe, overlap audit and task registry", "matches": 0},
+    {"kind": "current_source_and_docs", "check": "Few-NERD official-test evaluation call search over docs/scripts/src/tests/concourse", "historical_test_evaluation_matches": 0, "note": "Only the new deferred-test preparer described test reservation."},
+    {"kind": "durable_historical_input", "bucket": "ncm-fewnerd-probes", "key": "fewnerd/inputs/probe-inputs-1.0.3.tar.gz", "sha256": "db740bbb4d0423f36b2ae50c1d38fa4943b48e04217a831d464948e6057711c7", "bytes": 18451235, "fewnerd_corpus_splits_present": ["train", "validation"], "official_test_present": false},
+    {"kind": "durable_corrected_evaluation", "bucket": "ncm-fewnerd-probes", "key": "fewnerd/evaluations/fewnerd-evaluation-20261031T173056Z.tar.gz", "sha256": "a6c99cae0e090cd517e97a6d50756ef658d3202fe71b08534789082e19d1209c", "bytes": 31307, "split": "validation", "selection_seed": 42, "n_validation": 300},
+    {"kind": "execution_authorization", "scope": "User selected Authorize bounded Concourse control: finalize Phase A first, privately publish inputs/checkpoints and deploy one locked tiny-set control; no generator/public publication."}
+  ],
+  "limitations": [
+    "This establishes clearance within the recorded research available for audit, not proof about unrecorded external activity.",
+    "No protected-test predictions or quality metrics were generated or inspected by this audit.",
+    "No document IDs exist in these source rows; sentence-disjoint is not document-disjoint, and near-duplicates remain possible.",
+    "Historical validation metrics are development evidence only; they do not serve as protected test results."
+  ]
+}

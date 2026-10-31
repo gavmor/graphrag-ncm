@@ -131,17 +131,23 @@ The ordinary tokenizer trainer also exposes a separate, explicit tiny-set contro
 CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   PYTHONPATH=third_party/ncm:src uv run --offline --frozen \
   python -m ncm_graphrag.ncm.train_tokenizer --task fewnerd_extraction \
-  --overfit-control --frozen-inputs benchmarks/fewnerd --preflight
+  --overfit-control --frozen-inputs benchmarks/fewnerd-protected --preflight
 ```
 
 Preflight resolves the first 32 stored tokenizer rows, verifies checksums,
 membership/disjointness and actual serialization token IDs, and reports the fixed
 2,000-update/batch-32/seed-0/3e-4 schedule separately from the historical defaults.
-This diagnostic set contains 44 names, 42 multi-subword. It currently reports
-`training_ready: false`: Phase A's protected-test manifest and prior-use clearance
-remain deferred. An attempted research launch fails before creating outputs or
-initializing CUDA/storage. Clearing this gate requires a newly frozen protocol,
-not editing immutable inputs during an optimization segment.
+This diagnostic set contains 44 names, 42 multi-subword. The original
+`benchmarks/fewnerd` remains unchanged and reports `training_ready: false`.
+The separately frozen `benchmarks/fewnerd-protected` adds 1,000 seed-43 official-test
+groups, excluding every raw official-train/validation identity and conflicting
+annotation group, and reports `training_ready: true`. Its train/tokenizer/tuning
+manifests and GPT-2 assets are byte-identical to the original baseline.
+`history-audit.json` pins the non-shallow source-history audit and durable input/
+evaluation hashes: the historical input contains only train/validation parquet;
+the corrected 300-example evaluation identifies validation, seed 42. Clearance
+is scoped to recorded research, not unrecorded external activity. No protected-test
+predictions or quality metrics have been produced.
 
 After protocol clearance, remove `--preflight` and supply a new `--output-dir`
 only inside an approved foreground Concourse CUDA task holding `gpu-lock`.
@@ -157,10 +163,20 @@ without these explicit flags retain their original behavior.
 
 Engineering verification exercised preflight, the incomplete-protocol refusal,
 and one full-architecture CPU optimizer step plus greedy reconstruction without
-saving a model. This is not the 2,000-update control or a gate result. The actual
-CUDA, durable-upload, and full-schedule execution paths remain unexercised; new
-source packaging, approved deployment/publication, and the proposal's task-level
-RAM/disk/telemetry/lock-release requirements are still prerequisites.
+saving a model. This is not the 2,000-update control or a gate result.
+The approved new job is `ncm-fewnerd-quality-control/tiny-overfit-control`,
+defined in `concourse/fewnerd-quality-control.yml`. It preserves checksum/image/
+lockfile preflight, 24 GiB available host RAM / 20 GiB free disk checks, a 32 GiB
+task memory limit, foreground CUDA, 5-second whole-device VRAM/utilization sampling,
+GNU time peak RSS, and release-before-package-before-publication ordering.
+It adapts template revision `22fd687e06f83b7aea8ccb466570b2197905d1b2`;
+the exact template blob is recorded in the pipeline and source bundle.
+The historical image lacks GNU time, so the derivative
+`ncm-fewnerd-quality-control` image adds only Debian `time` 1.9-0.2 and is pinned
+by digest. `scripts/package_fewnerd_quality_control.py` packages committed source,
+both protocols and the offline GPT-2 cache without credentials, using deterministic
+tar/gzip metadata. Actual control execution and its gate result are reported
+separately; approval covers only this bounded control, not T0 or generator work.
 
 Historical replay remains available explicitly through
 `fly -t local trigger-job --job ncm-fewnerd-cache-probe/evaluate-saved-probe --watch`.

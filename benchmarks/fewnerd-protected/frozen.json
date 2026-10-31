@@ -1,0 +1,239 @@
+{
+  "bounds": {
+    "max_entities": 2,
+    "min_entities": 1,
+    "prefix_padding": false,
+    "prefix_tokens": 64,
+    "target_includes_eos": true,
+    "target_tokens": 80
+  },
+  "files": {
+    "audit.json": "f8740af4ee031196a1c211871a5e386108b2f1735dd13f338ac20240e3bac11c",
+    "generator-train.jsonl": "0f445f87da00cc027738932acc9a681db83ec77ae9f8e7fdee1f1143a03fa610",
+    "history-audit.json": "10d5e9f339c5ffd57f55404a2f2efdad91ce381b1ca6c01306ce94f3f09a509a",
+    "raw-groups.jsonl": "33f5e0dd506e5be90a0a521ebfb223ca62dfc8a96fe60e7f7364e1cb0a4b0f6d",
+    "reserved-test.jsonl": "be436733e319ee3d6c1f4c66fdbdd6df40a21f2a8a1b5b33ea7a87313fc9b078",
+    "resolved-configs.json": "9a0053ea4f85c13eb048f65b165f30251d361949e7c05429ca0bd65c63b97826",
+    "tokenizer-train.jsonl": "aa34ee63ae005cc2c5dbd24f05c62ff1824556248d07703848cc09f40b44342a",
+    "tokenizer/config.json": "0daed7749b4f02b8f76240d5444551d7b08712dab4d0adb8239c56ba823bb7b4",
+    "tokenizer/merges.txt": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+    "tokenizer/tokenizer.json": "8414cab924d8b9b33013f0d221c5862f365ee9be39c5c2bfae8a5a9e970478a6",
+    "tokenizer/tokenizer_config.json": "5e04eb606e3a1583530a42e36c2a6b6615c86f34fe77e44d9ddeb43ff940931f",
+    "tokenizer/vocab.json": "196139668be63f3b5d6574427317ae82f612a97c5d1cdaf36ed2256dbf636783",
+    "tuning.jsonl": "2175b2433251ba7f098d69299f651545b03d35e22daffe1a0ba055cfa8b8a80e"
+  },
+  "identity": {
+    "hash": "SHA256 UTF-8",
+    "includes_gold_types": false,
+    "normalization": "Unicode NFC, collapsed whitespace, case preserved"
+  },
+  "limitations": [
+    "Sentence-disjoint, not document-disjoint: source rows provide no article identity",
+    "Near-duplicate sentences are not excluded",
+    "Oracle candidate entity types derived from gold are supplied equally to every control",
+    "Shared entity names and target strings alone are not excluded"
+  ],
+  "manifest_token_hashes": {
+    "generator-train.jsonl": {
+      "group_id_sha256": "950fe4f6f22740c306d98b54c61f9e61d3e7b8f5b0755c901ce6521c06d937c5",
+      "prefix_ids_sha256": "ee8173cdf5fb49f23c6c0c6c4968ccc67d4677c66b45877d5483f5ced08b8a37",
+      "target_ids_sha256": "decb1e11d31ba20a06e3512aad576256c355a665cc78dc18b999322786dd4a83"
+    },
+    "reserved-test.jsonl": {
+      "group_id_sha256": "3eef8e058b715ed8fa72de70d74883a4613b6a0e04b0f29197eee7fabeb19b02",
+      "prefix_ids_sha256": "92c665f873f05af262f96c1fe7630c6e5d1acdce8f2921f2b5f6bf737489490d",
+      "target_ids_sha256": "59adbef79fb40c3d5371c91ea428691baef393c75d19640c5d05fbfa37af3d34"
+    },
+    "tokenizer-train.jsonl": {
+      "group_id_sha256": "0797c5a908e6fc01a89065c1457b38baba9d9d04c7e78602b310b18c7b56ce0c",
+      "prefix_ids_sha256": "1301ce4822223802ab1d44860e07896929b47ddb8072ef07382d6961fd166950",
+      "target_ids_sha256": "f301d2bac051e6ac7c37598c3d3ddf6bb19b194d32cb5fada2cb6bce21641daa"
+    },
+    "tuning.jsonl": {
+      "group_id_sha256": "b0bf893e97fbaea1922bfb051aa028a752cf9b883d71a0014ff24688114f114c",
+      "prefix_ids_sha256": "bd099388fb66ee5bad73f7baadbbdf01870f6821744440a3607c9a214cdeb13e",
+      "target_ids_sha256": "dc28b0bbfaf5544258caa0a568b1c1adf188f33efef5a4e91ad435246a24a501"
+    }
+  },
+  "provenance": {
+    "code_revision": "d6ed0499096b3c2948ab30fa5176ad8918d60f53",
+    "corpus_root": "/home/user/Desktop/gavmor/ncm-graphrag-worktrees/.aoe-trash/32da078e753a4caa/corpora",
+    "source_hash_policy": "informational provenance only; not immutable benchmark acceptance constraints",
+    "source_sha256": {
+      "scripts/prepare_fewnerd_quality_inputs.py": "51c5ffe8ce5d43a0eb80b97721b6dbb4ea93a22eb2ce5a0bd5c4b93f0b2c8a91",
+      "src/ncm_graphrag/data/extraction.py": "6fe4191472a8a720fb5ce4ec2504b1bf82407e59ffff4115b68f06d8fe4ec9e7",
+      "src/ncm_graphrag/data/fewnerd_extraction.py": "2be15ca7346eb5b1e1f104a65927827b5bda1fdc26f201b225d1f6286cc6c342",
+      "src/ncm_graphrag/data/fewnerd_quality_metrics.py": "c06381ccfbd133481cd027138defec1ea3d615f2120ba54bc061129e6b084627",
+      "src/ncm_graphrag/data/real_extraction.py": "68f4b8af32e871e6d4b9339062949e782fd25c5210385110e4a1c792bc535a6f",
+      "src/ncm_graphrag/ncm/config.py": "67b0b5ecd3b4e8362f418ca967f7661fef512c57a9d7e488c2d7c8970d9f18b3",
+      "third_party/ncm/tokenization/hf_tokenizer.py": "76438d8e102a365cb30fd053e47ca138712649c893a06a92b0cc1448b5dcd49d"
+    }
+  },
+  "raw_corpus": {
+    "test": {
+      "filename": "test-00000-of-00001.parquet",
+      "sha256": "b7ad746fcbeb68fcc235ba7142d7c3723ea2dc39930089e947284defecf300c6"
+    },
+    "train": {
+      "filename": "train-00000-of-00001.parquet",
+      "sha256": "6ccb192b1accd3d1754db2244d18ddf64040357fb5b9076a338ec421a72d7d61"
+    },
+    "validation": {
+      "filename": "validation-00000-of-00001.parquet",
+      "sha256": "d502de918f2a6510179e64bc8b7cfff4e28999188e308f8b0fe75bd71844da66"
+    }
+  },
+  "reserved_test_predictions_or_metrics": false,
+  "resolved_configs": {
+    "evaluation": {
+      "batch_size": 8,
+      "control": "untrained_seeded_control",
+      "deterministic": true,
+      "device": "cpu",
+      "initialization_seed": 0,
+      "training_updates": 0
+    },
+    "generation": {
+      "adjacency_penalty": "",
+      "cfg_scale": 0.0,
+      "cut_at_eos": true,
+      "frequency_deficit": 0.0,
+      "frequency_penalty": 0.0,
+      "temperature": 1.0,
+      "top_k": 1,
+      "top_p": 0.0
+    },
+    "generator": {
+      "attn_pattern": "block_diagonal",
+      "bias": true,
+      "conditioning_noise": 0.0,
+      "contextual_prefix": false,
+      "dropout": 0.1,
+      "n_embd": 384,
+      "n_head": 6,
+      "n_layer": 6,
+      "prefix_len": 64,
+      "prefix_pad_token_id": 50257,
+      "query_level0": true,
+      "raw_token_prefix": true,
+      "rope_base": 10000,
+      "save_path": "/home/user/Desktop/gavmor/ncm-graphrag/artifacts/fewnerd_extraction/generator.pt",
+      "tie_heads_learn_scale": true,
+      "tie_heads_to_codebook": true,
+      "use_level_encoding": true,
+      "use_positional_encoding": true,
+      "use_qk_norm": true,
+      "use_rope": true,
+      "vocab_size": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ]
+    },
+    "tiny_training_diagnostic": {
+      "manifest": "tokenizer-train.jsonl",
+      "overfit_training": false,
+      "rows": 32,
+      "selection": "first 32 rows in stored order"
+    },
+    "vqvae": {
+      "compression_factor": 1,
+      "context_length": 80,
+      "dec_layers": 1,
+      "dropout": 0.1,
+      "embed_dim": 128,
+      "enc_layers": 2,
+      "in_vocab_size": 50304,
+      "n_layers": 2,
+      "pre_quant_dropout": 0.1,
+      "pre_quant_groupnorm": 8,
+      "pre_quant_norm_type": "group",
+      "use_qk_norm": true,
+      "vector_quantizer_config": {
+        "aux": {
+          "fine_drop": {
+            "min_keep": 1,
+            "prob": 0.3
+          }
+        },
+        "clss": "multiscale_residual_vector_quantizer",
+        "commitment_cost": 0.25,
+        "decay": 0.99,
+        "epsilon": 1e-05,
+        "learned_all_sampling": false,
+        "learned_l1_sampling": true,
+        "levels": {
+          "manual_levels": [
+            2,
+            5,
+            10,
+            20,
+            80
+          ],
+          "use_manual_levels": true
+        },
+        "quant_resi": {
+          "enabled": true,
+          "learnable_ratio": false,
+          "ratio": 0.5,
+          "share_mode": 0
+        }
+      },
+      "vqvae_vocab_size": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ]
+    }
+  },
+  "schema_version": 1,
+  "selection": {
+    "generator": {
+      "actual": 49026,
+      "method": "Python random.Random.shuffle of unique clean eligible official-train groups in first converter occurrence order; take first min(50000,pool_size)",
+      "requested_max": 50000,
+      "seed": 0
+    },
+    "reserved_test": {
+      "actual": 1000,
+      "history_audit_file": "history-audit.json",
+      "history_audit_sha256": "10d5e9f339c5ffd57f55404a2f2efdad91ce381b1ca6c01306ce94f3f09a509a",
+      "history_clearance": "confirmed",
+      "method": "Python random.Random.shuffle of unique clean eligible official-test groups in first converter occurrence order, excluding all raw official-train and official-validation identities and globally conflicting annotations; first 1000",
+      "requested": 1000,
+      "seed": 43,
+      "status": "frozen"
+    },
+    "tokenizer": {
+      "actual": 6000,
+      "method": "first 6000 rows of selected generator manifest, preserving order; no second shuffle",
+      "seed": 0
+    },
+    "tuning": {
+      "actual": 1000,
+      "method": "Python random.Random.shuffle of unique clean eligible validation groups excluding all raw official-train identities; first 1000",
+      "seed": 42
+    }
+  },
+  "tokenizer": {
+    "directory": "tokenizer",
+    "eos_token_id": 50256,
+    "load_contract": "AutoTokenizer.from_pretrained(local directory, local_files_only=True), then add_special_tokens({'pad_token':'<|pad|>'})",
+    "local_files_only": true,
+    "model_id": "gpt2",
+    "pad_token": "<|pad|>",
+    "pad_token_id": 50257,
+    "revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e",
+    "source_files_sha256": {
+      "config.json": "0daed7749b4f02b8f76240d5444551d7b08712dab4d0adb8239c56ba823bb7b4",
+      "merges.txt": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+      "tokenizer.json": "8414cab924d8b9b33013f0d221c5862f365ee9be39c5c2bfae8a5a9e970478a6",
+      "tokenizer_config.json": "5e04eb606e3a1583530a42e36c2a6b6615c86f34fe77e44d9ddeb43ff940931f",
+      "vocab.json": "196139668be63f3b5d6574427317ae82f612a97c5d1cdaf36ed2256dbf636783"
+    }
+  }
+}

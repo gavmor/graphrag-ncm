@@ -1,4 +1,12 @@
-"""Freeze offline, sentence-disjoint Few-NERD development inputs (never test samples).
+"""Freeze offline, sentence-disjoint Few-NERD quality inputs.
+
+Legacy preparation leaves test selection deferred. Protected reservation requires
+--reserve-test together with --history-audit, declaring recorded-research
+clearance, evidence, scope, and limitations; its original bytes are pinned.
+Reservation preserves the existing frozen train/tuning/tokenizer bytes and uses
+seed 43 to select 1000 test groups after all official train/validation identities
+and globally conflicting annotation groups are excluded. No predictions or
+metrics are produced.
 
 Run with PYTHONPATH=third_party/ncm:src. Only tokenizer assets are loaded; no model
 checkpoint is read. The output directory must be absent or empty. Source hashes
@@ -33,6 +41,7 @@ TARGET_BOUND = 80
 GENERATOR_SIZE = 50000
 TOKENIZER_SIZE = 6000
 TUNING_SIZE = 1000
+RESERVED_TEST_SIZE = 1000
 
 
 def canonical_text(text: str) -> str:
@@ -203,7 +212,40 @@ def _token_hashes(rows: list[dict[str, Any]]) -> dict[str, str]:
     return hashes
 
 
-def prepare(corpus_root: Path, output: Path, tokenizer_source: Path) -> None:
+def _load_history_audit(path: Path) -> bytes:
+    """Validate the clearance declaration and retain exactly the audited bytes."""
+    content = path.expanduser().resolve().read_bytes()
+    audit = json.loads(content)
+    if not isinstance(audit, dict) or audit.get("recorded_research_clearance") != "confirmed":
+        raise ValueError("History audit must declare recorded_research_clearance='confirmed'")
+    evidence = audit.get("evidence")
+    if (
+        not isinstance(evidence, list)
+        or not evidence
+        or any(not ((isinstance(item, str) and item.strip()) or (isinstance(item, dict) and item)) for item in evidence)
+    ):
+        raise ValueError("History audit requires a nonempty evidence list of strings or objects")
+    for key in ("scope", "limitations"):
+        value = audit.get(key)
+        if not (
+            (isinstance(value, str) and value.strip())
+            or (isinstance(value, list) and value and all(isinstance(item, str) and item.strip() for item in value))
+        ):
+            raise ValueError(f"History audit requires explicit nonempty {key} text or a list of strings")
+    return content
+
+
+def prepare(
+    corpus_root: Path,
+    output: Path,
+    tokenizer_source: Path,
+    *,
+    reserve_test: bool = False,
+    history_audit: Path | None = None,
+) -> None:
+    if reserve_test != (history_audit is not None):
+        raise ValueError("--reserve-test and --history-audit are required together")
+    history_audit_bytes = _load_history_audit(history_audit) if history_audit is not None else None
     from omegaconf import OmegaConf
     from tokenization.hf_tokenizer import HFTokenizer
 
@@ -256,6 +298,8 @@ def prepare(corpus_root: Path, output: Path, tokenizer_source: Path) -> None:
         tokenizer_dir.mkdir(parents=True)
         for name in TOKENIZER_FILES:
             shutil.copyfile(tokenizer_source / name, tokenizer_dir / name)
+        if history_audit_bytes is not None:
+            (staging / "history-audit.json").write_bytes(history_audit_bytes)
         tokenizer = HFTokenizer(model_id=str(tokenizer_dir), pad_token="<|pad|>", local_files_only=True)
         if (tokenizer.eos_token_id, tokenizer.pad_token_id) != (50256, 50257):
             raise ValueError("Unexpected GPT-2 EOS/PAD identity")
@@ -269,6 +313,12 @@ def prepare(corpus_root: Path, output: Path, tokenizer_source: Path) -> None:
             tuning, tuning_counts = _eligible_rows(
                 "validation", fewnerd._build("validation"), groups, official_train, tokenizer
             )
+            reserved_test: list[dict[str, Any]] = []
+            if reserve_test:
+                reserved_test, test_counts = _eligible_rows(
+                    "test", fewnerd._build("test"), groups, official_train | official_validation, tokenizer
+                )
+                split_audit["test"].update(test_counts)
         finally:
             fewnerd._build.cache_clear()
             real_extraction._TOKENIZER = previous_tokenizer
@@ -290,13 +340,36 @@ def prepare(corpus_root: Path, output: Path, tokenizer_source: Path) -> None:
         tuning = tuning[:TUNING_SIZE]
         if {row["group_id"] for row in training} & {row["group_id"] for row in tuning}:
             raise ValueError("Frozen train/tuning group overlap")
+        if reserve_test:
+            if len(reserved_test) < RESERVED_TEST_SIZE:
+                raise ValueError(
+                    f"Insufficient clean test groups: {len(reserved_test)} (need {RESERVED_TEST_SIZE}); "
+                    "test reservation refused"
+                )
+            random.Random(43).shuffle(reserved_test)
+            reserved_test = reserved_test[:RESERVED_TEST_SIZE]
+            test_ids = {row["group_id"] for row in reserved_test}
+            if len(test_ids) != RESERVED_TEST_SIZE or test_ids & (official_train | official_validation | conflicts):
+                raise ValueError("Reserved test must contain 1000 unique, clean, official-split-disjoint groups")
         manifests = {
             "generator-train.jsonl": training,
             "tokenizer-train.jsonl": tokenizer_training,
             "tuning.jsonl": tuning,
         }
+        if reserve_test:
+            manifests["reserved-test.jsonl"] = reserved_test
         for filename, rows in manifests.items():
             _write_jsonl(staging / filename, rows)
+        if reserve_test:
+            retained_files = (
+                "generator-train.jsonl",
+                "tokenizer-train.jsonl",
+                "tuning.jsonl",
+                *(f"tokenizer/{name}" for name in TOKENIZER_FILES),
+            )
+            for filename in retained_files:
+                if sha256(staging / filename) != sha256(PROJECT_ROOT / "benchmarks" / "fewnerd" / filename):
+                    raise ValueError(f"Protected reservation would change existing frozen bytes: {filename}")
         _write_jsonl(
             staging / "raw-groups.jsonl",
             (
@@ -315,7 +388,7 @@ def prepare(corpus_root: Path, output: Path, tokenizer_source: Path) -> None:
                 "SHA256 of canonical-text character spans [start,end,coarse_type], retaining all raw mentions"
             ),
             "identity_only_exclusions_can_overlap_conflict_counts": True,
-            "test_eligibility_computed": False,
+            "test_eligibility_computed": reserve_test,
         }
         _write_json(staging / "audit.json", audit)
         resolved_vq = OmegaConf.to_container(config.build_fewnerd_extraction_tokenizer_cfg().vqvae, resolve=True)
@@ -434,26 +507,65 @@ def prepare(corpus_root: Path, output: Path, tokenizer_source: Path) -> None:
             ],
             "reserved_test_predictions_or_metrics": False,
         }
+        if reserve_test:
+            metadata["selection"]["reserved_test"] = {
+                "seed": 43,
+                "requested": RESERVED_TEST_SIZE,
+                "actual": len(reserved_test),
+                "status": "frozen",
+                "history_clearance": "confirmed",
+                "history_audit_file": "history-audit.json",
+                "history_audit_sha256": files["history-audit.json"],
+                "method": (
+                    "Python random.Random.shuffle of unique clean eligible official-test groups "
+                    "in first converter occurrence order, excluding all raw official-train and "
+                    "official-validation identities and globally conflicting annotations; first 1000"
+                ),
+            }
         _write_json(staging / "frozen.json", metadata)
         staging.replace(output)
     print(
         f"Frozen Few-NERD inputs at {output}: generator={len(training)}, "
-        f"tokenizer={len(tokenizer_training)}, tuning={len(tuning)}; test selection deferred"
+        f"tokenizer={len(tokenizer_training)}, tuning={len(tuning)}; "
+        + (f"reserved_test={len(reserved_test)}" if reserve_test else "test selection deferred")
     )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus-root", required=True, type=Path, help="Corpora root or Few-NERD supervised directory")
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "benchmarks" / "fewnerd")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="New/empty directory; defaults under benchmarks to fewnerd-protected with --reserve-test, else fewnerd",
+    )
     parser.add_argument(
         "--tokenizer-source",
         type=Path,
         default=Path.home() / ".cache" / "huggingface" / "hub" / "models--gpt2" / "snapshots" / GPT2_REVISION,
         help="Existing local GPT-2 tokenizer assets; never downloaded",
     )
+    parser.add_argument(
+        "--reserve-test",
+        action="store_true",
+        help="Reserve 1000 protected test groups; requires --history-audit",
+    )
+    parser.add_argument(
+        "--history-audit",
+        type=Path,
+        help="Completed recorded-research clearance JSON; requires --reserve-test",
+    )
     args = parser.parse_args()
-    prepare(args.corpus_root, args.output, args.tokenizer_source)
+    if args.reserve_test != (args.history_audit is not None):
+        parser.error("--reserve-test and --history-audit must be supplied together")
+    output = args.output or PROJECT_ROOT / "benchmarks" / ("fewnerd-protected" if args.reserve_test else "fewnerd")
+    prepare(
+        args.corpus_root,
+        output,
+        args.tokenizer_source,
+        reserve_test=args.reserve_test,
+        history_audit=args.history_audit,
+    )
 
 
 if __name__ == "__main__":

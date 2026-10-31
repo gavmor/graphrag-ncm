@@ -282,10 +282,10 @@ def main():
         "train_diagnostic_32": {"metrics": train_metrics, **train_report},
         "tuning": {"metrics": tuning_metrics, **tuning_report},
         "limitations": [
-            "Evaluation-only harness: no tokenizer overfit or scheduled training has run.",
+            "This entrypoint evaluates only; it does not execute separate training controls.",
             "Initial seed-0 untrained control is not a historical checkpoint result.",
             "32 training targets are diagnostic only, not the 2000-update overfit control.",
-            "No reserved-test predictions, metrics, or final-test selection.",
+            "No reserved-test predictions or metrics; protected protocol is maintained separately.",
             "Sentence-disjoint, not document-disjoint; near duplicates remain possible.",
         ],
     }

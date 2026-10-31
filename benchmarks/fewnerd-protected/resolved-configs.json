@@ -1,0 +1,106 @@
+{
+  "evaluation": {
+    "batch_size": 8,
+    "control": "untrained_seeded_control",
+    "deterministic": true,
+    "device": "cpu",
+    "initialization_seed": 0,
+    "training_updates": 0
+  },
+  "generation": {
+    "adjacency_penalty": "",
+    "cfg_scale": 0.0,
+    "cut_at_eos": true,
+    "frequency_deficit": 0.0,
+    "frequency_penalty": 0.0,
+    "temperature": 1.0,
+    "top_k": 1,
+    "top_p": 0.0
+  },
+  "generator": {
+    "attn_pattern": "block_diagonal",
+    "bias": true,
+    "conditioning_noise": 0.0,
+    "contextual_prefix": false,
+    "dropout": 0.1,
+    "n_embd": 384,
+    "n_head": 6,
+    "n_layer": 6,
+    "prefix_len": 64,
+    "prefix_pad_token_id": 50257,
+    "query_level0": true,
+    "raw_token_prefix": true,
+    "rope_base": 10000,
+    "save_path": "/home/user/Desktop/gavmor/ncm-graphrag/artifacts/fewnerd_extraction/generator.pt",
+    "tie_heads_learn_scale": true,
+    "tie_heads_to_codebook": true,
+    "use_level_encoding": true,
+    "use_positional_encoding": true,
+    "use_qk_norm": true,
+    "use_rope": true,
+    "vocab_size": [
+      256,
+      256,
+      256,
+      256,
+      256
+    ]
+  },
+  "tiny_training_diagnostic": {
+    "manifest": "tokenizer-train.jsonl",
+    "overfit_training": false,
+    "rows": 32,
+    "selection": "first 32 rows in stored order"
+  },
+  "vqvae": {
+    "compression_factor": 1,
+    "context_length": 80,
+    "dec_layers": 1,
+    "dropout": 0.1,
+    "embed_dim": 128,
+    "enc_layers": 2,
+    "in_vocab_size": 50304,
+    "n_layers": 2,
+    "pre_quant_dropout": 0.1,
+    "pre_quant_groupnorm": 8,
+    "pre_quant_norm_type": "group",
+    "use_qk_norm": true,
+    "vector_quantizer_config": {
+      "aux": {
+        "fine_drop": {
+          "min_keep": 1,
+          "prob": 0.3
+        }
+      },
+      "clss": "multiscale_residual_vector_quantizer",
+      "commitment_cost": 0.25,
+      "decay": 0.99,
+      "epsilon": 1e-05,
+      "learned_all_sampling": false,
+      "learned_l1_sampling": true,
+      "levels": {
+        "manual_levels": [
+          2,
+          5,
+          10,
+          20,
+          80
+        ],
+        "use_manual_levels": true
+      },
+      "quant_resi": {
+        "enabled": true,
+        "learnable_ratio": false,
+        "ratio": 0.5,
+        "share_mode": 0
+      }
+    },
+    "vqvae_vocab_size": [
+      256,
+      256,
+      256,
+      256,
+      256
+    ]
+  }
+}
