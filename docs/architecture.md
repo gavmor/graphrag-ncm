@@ -62,6 +62,29 @@ flowchart LR
 
 ## Slice 1 training pipeline (fills the gap: no official NCM trainer exists)
 
+`train_generator.py` precomputes frozen VQ-VAE codes and next-level embeddings
+in `<generator save_path>.cache.pt`. `NCM_GENERATOR_CACHE` overrides that path.
+The cache records SHA-256 identities for the tokenizer checkpoint bytes, loaded
+model state, and both complete tokenized prefix/target matrices (including dtype,
+shape, row order, padding, and EOS). Model architecture, quantizer levels, and a
+format version are also checked. Checkpoint weights must match the loaded model.
+Stored tensor checksums detect changed payloads.
+
+Changed checkpoints or tokenized data and legacy caches without provenance produce
+an error naming the cache. Remove that file and rerun training to rebuild; never
+reuse a pre-provenance cache. New files are written atomically. Cache construction
+uses eval mode, batches of 64, and CPU storage; training transfers only selected
+rows to the model device. Prefix embeddings remain computed online, preserving
+condition dropout and contextual-prefix behavior.
+
+The offline CPU acceptance workload (`bash autoresearch.sh`) compares cached codes
+and embeddings with fresh VQ-VAE outputs and runs a generator optimizer step.
+Regression coverage independently changes prefix and target token IDs, replaces a
+checkpoint at the same path, and rejects legacy or altered cache payloads. These
+checks do not establish training quality: the full 1,500/3,000-step probe and
+held-out evaluation remain required before merging the training pipeline.
+
+
 ```mermaid
 flowchart TB
     D[Synthetic map-stage dataset\nsrc/ncm_graphrag/data/map_stage.py] --> T1[train_tokenizer.py\nVQVAE recon CE + internal vq_loss\n3000 steps, ~1 min]

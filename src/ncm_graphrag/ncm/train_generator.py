@@ -32,6 +32,7 @@ from models.next_concept import NextConceptTransformer
 from models.vqvae import VQVAE
 from tokenization.hf_tokenizer import HFTokenizer
 
+from ncm_graphrag.ncm.generator_cache import load_or_build_cache
 from ncm_graphrag.ncm.task_registry import TASKS, TaskSpec
 
 # Schedule knobs are overridable so schedule experiments need no code edits. The sample budget
@@ -103,6 +104,8 @@ def main() -> None:
 
     prefix_data, target_data = _build_dataset(task, model_cfg.prefix_len, tok_cfg.vqvae.context_length, pre_tok)
     n = prefix_data.shape[0]
+    cache_path = os.environ.get("NCM_GENERATOR_CACHE", f"{model_cfg.save_path}.cache.pt")
+    cached = load_or_build_cache(vqvae, tok_cfg.save_path, prefix_data, target_data, cache_path)
 
     # Optional held-out teacher-forced loss every NCM_EVAL_EVERY steps (off by default). Training loss
     # alone cannot show memorisation: on the Multi-News drafter it fell to ~1.8 while held-out loss
@@ -146,13 +149,12 @@ def main() -> None:
     for step in range(steps):
         sel = torch.randint(0, n, (BATCH_SIZE,))
         prefix_batch = prefix_data[sel].to(device)
-        target_batch = target_data[sel].to(device)
+        idx = cached["idx"][sel].to(device)
+        rest_embed = cached["rest_embed"][sel].to(device)
         if COND_DROP > 0.0:
             prefix_batch = apply_cond_drop(prefix_batch, COND_DROP, pad_id, eos_id)
 
         with torch.no_grad():
-            idx = vqvae.encode(target_batch)  # (B, L) codebook indices across all levels
-            rest_embed = vqvae.vq.idx_to_ncm_input(idx)  # (B, L - levels[0], embed_dim)
             _enc = vqvae.encoder
             if bool(getattr(model_cfg, "contextual_prefix", False)) and len(getattr(_enc, "blocks", [])) > 0:
                 # Deliberately unmasked: measured PAD-masked prefix attention at 0.89 F1 vs
