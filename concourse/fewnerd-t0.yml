@@ -121,6 +121,7 @@ jobs:
                 assert config['batch_size'] == 128, 'T0 requires batch size 128'
                 assert config['evaluation_steps'] == [1500, 3000, 6000], 'T0 evaluation checkpoints differ'
                 PY
+                python -m unittest discover -s tests -v 2>&1 | tee "$PREP_LOG/tests.log"
                 python -m pip freeze > "$PREP_LOG/dependencies.txt"
       - put: gpu-lock
         params: {acquire: true}
