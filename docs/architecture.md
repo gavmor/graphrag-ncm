@@ -350,6 +350,34 @@ The workspace checkpoint in `benchmarks/fewnerd/candidate.pt` is restored to the
 reference arm so the canonical benchmark measures the declared reference, not the
 ablation; T1's selected model is retained under `artifacts/fewnerd-t1/`.
 
+**Name-level error decomposition** (`scripts/analyze_fewnerd_tokenizer_errors.py`,
+decomposing the stored greedy reconstructions on the 1,000 tuning rows):
+
+| Quantity at 6,000 steps | T0 | T1 |
+| --- | ---: | ---: |
+| Gold entities / predicted entities | 1,493 / 1,456 | 1,493 / 1,446 |
+| Exact typed matches | 152 | 157 |
+| Typed precision / recall | 10.44% / 10.18% | 10.86% / 10.52% |
+| Gold names matched but type wrong | 2 | 0 |
+| Gold names missing entirely | 1,339 | 1,336 |
+| Predicted extra names | 1,302 | 1,289 |
+| Predicted names copied from the prefix | 156 | 159 |
+| **Predicted names absent from the input text** | **1,300 (89.3%)** | **1,287 (89.0%)** |
+| Rows exactly correct | 58 / 1,000 | 59 / 1,000 |
+| Rows with an empty prediction | 5 | 6 |
+
+The mechanism is now explicit. Nearly nine in ten reconstructed entity names appear
+nowhere in the source sentence: the decoder is not mis-copying a span, it is
+generating plausible-looking names that the discrete latents never preserved.
+Type errors are negligible (0-2 of ~1,400), and empty predictions are rare, so
+neither typing nor truncation explains the loss. Combined with the seen/unseen gap
+(40.6% vs 2.3% F1) and 0% recall on names whose subword tokens never appeared in
+training, the limitation is faithful preservation of arbitrary input strings through
+the VQ bottleneck. The 6,000-sentence training manifest also under-covers the tuning
+vocabulary: of 1,493 tuning gold names, 1,205 (80.7%) are unseen, and 487 are
+11-20 characters long versus 61 seen names in that band.
+
+
 
 
 
