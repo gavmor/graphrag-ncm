@@ -326,14 +326,14 @@ benchmark reproduced T1's selected checkpoint exactly (F1 10.45, CE 9.72213,
 non-PAD CE 0.61967, name-token accuracy 41.34215).
 
 **Packet conclusion (negative).** Both predeclared arms miss the 90%/80% continuation
-gate, so the tokenizer packet stops before generator training. PAD dilution is not
-the binding constraint: removing PAD supervision changed tuning F1 by ~0.2 points in
-one seed, did not improve its own objective's CE, and sacrificed PAD reconstruction.
-The consistent signal instead is unseen-vocabulary coverage — seen names reach
-40.58% F1 while unseen names reach 2.32%, zero-exposure subword names reconstruct at
-exactly 0%, and all five codebooks are 96-99% saturated. That is consistent with a
-vocabulary-coverage or rate-distortion constraint (the proposal's own alternative
-branch), but one seed and one ablation cannot establish a hard capacity ceiling.
+gate, so the tokenizer packet stops before generator training. Removing PAD
+supervision changed tuning F1 by ~0.2 points in one seed, did not improve tuning
+non-PAD CE, and sacrificed PAD reconstruction. This particular ablation did not
+rescue reconstruction; it does not establish that PAD weighting or training
+duration is irrelevant. Seen names reach 40.58% F1 while unseen names reach 2.32%;
+zero-exposure subword names reconstruct at exactly 0%. High codebook utilization
+does not establish saturation of representational capacity. Coverage, optimization,
+and encoder/decoder capacity remain possible contributors, not isolated causes.
 
 No generator, replication, or protected-test evaluation was run. The single proposed
 next diagnostic is a separately trained continuous (non-discrete) autoencoder
@@ -366,16 +366,17 @@ decomposing the stored greedy reconstructions on the 1,000 tuning rows):
 | Rows exactly correct | 58 / 1,000 | 59 / 1,000 |
 | Rows with an empty prediction | 5 | 6 |
 
-The mechanism is now explicit. Nearly nine in ten reconstructed entity names appear
-nowhere in the source sentence: the decoder is not mis-copying a span, it is
-generating plausible-looking names that the discrete latents never preserved.
-Type errors are negligible (0-2 of ~1,400), and empty predictions are rare, so
-neither typing nor truncation explains the loss. Combined with the seen/unseen gap
-(40.6% vs 2.3% F1) and 0% recall on names whose subword tokens never appeared in
-training, the limitation is faithful preservation of arbitrary input strings through
-the VQ bottleneck. The 6,000-sentence training manifest also under-covers the tuning
-vocabulary: of 1,493 tuning gold names, 1,205 (80.7%) are unseen, and 487 are
-11-20 characters long versus 61 seen names in that band.
+Nearly nine in ten reconstructed entity names are absent from the source sentence
+under the normalized-string audit. This demonstrates poor faithful reconstruction,
+not which internal component lost the information. The small count of matched-name
+type errors does not establish source-conditioned typing accuracy: the tokenizer
+receives gold answers, and the extraction protocol supplies oracle candidate types.
+Combined with the seen/unseen gap (40.6% vs 2.3% F1), the evidence identifies exact
+name preservation as a practical failure point, not a proven quantization-specific
+mechanism. Of 1,493 tuning gold name occurrences, 1,205 (80.7%) are unseen in the
+6,000 training sentences, including 487 names of 11-20 characters versus 61 seen
+names in that band. See the [deployment assessment](findings.md#entity-extraction-deployment-assessment-after-the-controlled-packet)
+for the supported uses and uncertainty correction.
 
 
 

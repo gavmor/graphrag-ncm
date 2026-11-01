@@ -66,10 +66,11 @@ open-vocabulary entity names.
    continuation gate, so no generator was trained. The diagnostic that matters: after training, names
    **seen** during tokenizer training reached 40.6% F1 while **unseen** names reached 2.3%, names
    whose subword tokens never appeared in training reconstructed at exactly 0%, and all five codebooks
-   were 96-99% saturated. Removing PAD supervision changed tuning F1 by only ~0.2 points, did not
-   improve its own non-PAD CE, and cost PAD reconstruction — so PAD dilution is not the binding
-   constraint. The evidence points at unseen-vocabulary coverage in the discrete bottleneck, not at
-   a training-schedule or PAD-weighting bug.
+   were 96-99% utilized. Removing PAD supervision changed tuning F1 by only ~0.2 points,
+   did not improve tuning non-PAD CE, and cost PAD reconstruction. This loss change did
+   not rescue name preservation; it does not rule out optimization, training duration,
+   or encoder/decoder capacity as contributors. Codebook utilization is not proof of
+   an architectural capacity ceiling.
 
 2. **Map stage (72.6 AUC).** Labels are human-annotated supporting facts (HotpotQA). Raw-text NCM
    scores 61.3, barely above BM25 (59.1). It reaches 72.6 only when handed cheap lexical features
@@ -96,6 +97,69 @@ open-vocabulary entity names.
    classifier-free guidance. Guidance raised proxies slightly (entity/number grounding 41.7 -> 47.3 at
    scale 1) and the judge moved from 9% to 15% claims supported, but fully faithful summaries fell
    5% -> 2% and fluency stayed 1.0: noise at n=60, far below the 27% floor.
+
+## Entity extraction: deployment assessment after the controlled packet
+
+**Do not adopt the current NCM pipeline as a standalone open-vocabulary entity
+extractor or an unchecked GraphRAG graph writer.** Fast, frequently valid records
+have not translated into reliable entity identity. No quality-matched extraction
+speed advantage has been demonstrated.
+
+The controlled T0/T1 scores above measure **reconstruction of supplied gold
+answers**, not conditional extraction from source text. The task is bounded to
+one or two entities and supplies oracle candidate types; it is not unrestricted
+NER. Both arms failed the predeclared 90% typed-F1 / 80% literal-exact gate.
+No new generator, seed replication, or protected-test evaluation followed.
+The dictionary's 36.35% is a practical reference, not a matched-data architecture
+comparison: it uses the larger frozen generator training pool.
+
+T1 reconstructed only 157 of 1,446 predicted typed entities correctly; about 89%
+of its predicted names were absent from the source under the normalized-string
+audit. Non-PAD token accuracy was 92.55%, but name-token accuracy was 41.34%.
+Accurately reconstructing supplied type labels does not demonstrate entity-type
+inference. The 32-target tiny control did reach 100% literal reconstruction,
+showing small-set fitting, not unseen-name generalization.
+
+The separate corrected historical Few-NERD generator probe reached 0.3676% typed
+F1 on 272 unseen prefixes despite 98.5294% registered validity; that post-hoc
+development subset is not an untouched test. The REBEL comparison below is
+additional evidence, not a directly comparable Few-NERD score.
+
+| Potential use | Evidence-based assessment |
+| --- | --- |
+| Generate arbitrary entity names | Not supported for deployment with the tested pipeline |
+| Populate a graph without independent grounding | Not supported; wrong names introduce spurious entities |
+| Tiny fixed entity vocabulary | Synthetic success exists; realistic catalog generalization is unproven |
+| Classify or rank supplied entity candidates | Untested in this extraction pipeline; no established advantage over simpler classifiers |
+| Select source spans or candidate IDs, then copy names deterministically | Plausible research direction, not a demonstrated NCM capability |
+| Emit formatting alone | Use ordinary serialization instead of a learned model |
+
+**Uncertainty correction:** a post-hoc paired bootstrap of the stored 1,000 tuning
+group predictions gives T1 minus T0 = +0.2167 F1 points, with a percentile 95%
+interval of [-1.2833, +1.7167] points (10,000 resamples, NumPy default RNG seed
+20261031). Each resample draws 1,000 paired sentence groups with replacement and
+averages their per-example F1 differences. This interval is conditional on the
+selected checkpoints and tuning set; it excludes training-seed uncertainty and
+does not establish a generalization gain. The earlier categorical claim that
+PAD dilution is not binding was stronger than this evidence supports.
+
+Poor reconstruction is a reason to pause generator-only tuning, not a
+mathematical upper bound on every generator using this decoder. Neither high
+codebook use nor source-absent reconstructed names isolates quantization from
+encoder/decoder capacity or optimization. Improving scores at the final checkpoint
+also leave longer training unresolved.
+
+**Recommendation:** use source-grounded extraction as the practical baseline.
+The proposed continuous-autoencoder control would test whether removing
+quantization improves exact-name preservation; it has not been run.
+**[INFERENCE]** A more application-oriented hybrid would predict source spans or
+candidate IDs and construct names from source offsets. Evaluate NCM for those
+bounded decisions only if it can beat a conventional span tagger or lightweight
+classifier at matched quality and measured end-to-end cost.
+
+See [the controlled protocol](fewnerd-model-quality-research-proposal.md) and
+[checkpoint results and error decomposition](architecture.md) for scope and
+artifact provenance.
 
 ## Where NCM is and is not a fit (evidence-ordered)
 
